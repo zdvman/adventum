@@ -1,4 +1,4 @@
-function SignIn() {
+function AuthPage() {
   return (
     <>
       {/*
@@ -198,4 +198,4 @@ function SignIn() {
   );
 }
 
-export default SignIn;
+export default AuthPage;
