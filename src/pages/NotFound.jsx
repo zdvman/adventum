@@ -1,3 +1,4 @@
+import { Button } from '@/components/catalyst-ui-kit/button';
 import { NavLink } from 'react-router';
 
 function NotFound() {
@@ -13,12 +14,9 @@ function NotFound() {
             Sorry, we couldn’t find the page you’re looking for.
           </p>
           <div className='mt-10 flex items-center justify-center gap-x-6'>
-            <NavLink
-              to='/'
-              className='rounded-md bg-indigo-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-xs hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500'
-            >
-              Go back home
-            </NavLink>
+            <Button>
+              <NavLink to='/'>Go back home</NavLink>
+            </Button>
             <NavLink to='/support' className='text-sm font-semibold text-white'>
               Contact support <span aria-hidden='true'>&rarr;</span>
             </NavLink>
