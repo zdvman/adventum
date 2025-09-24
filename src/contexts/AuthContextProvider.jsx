@@ -1,5 +1,6 @@
 // src/context/AuthContext.jsx
 import { useState } from 'react';
+import { AuthContext } from '@/contexts/AuthContext';
 
 export function AuthContextProvider({ children }) {
   const [user, setUser] = useState(null); // { uid, email }
@@ -7,7 +8,7 @@ export function AuthContextProvider({ children }) {
   const [loading, setLoading] = useState(false);
 
   // replace these with Firebase/Supabase later
-  async function signIn(email, password = null) {
+  async function signIn(email) {
     setLoading(true);
     await new Promise((r) => setTimeout(r, 400));
     const mock = { uid: 'u1', email };
