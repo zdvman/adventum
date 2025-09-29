@@ -1,7 +1,7 @@
 {
   "users": [
     {
-      "id": 1,
+      "uid": 1,
       "email": "user@example.com",
       "password": "password123",
       "name": "Regular User",
@@ -9,7 +9,7 @@
       "avatar": "/avatars/john.png"
     },
     {
-      "id": 2,
+      "uid": 2,
       "email": "zdv@example.com",
       "password": "mypassword",
       "name": "Dmytro Zuiev",
@@ -17,7 +17,7 @@
       "avatar": "/avatars/jane.png"
     },
     {
-      "id": 3,
+      "uid": 3,
       "email": "admin@example.com",
       "password": "admin123",
       "name": "Admin Staff",
