@@ -13,6 +13,7 @@ export function AuthContextProvider({ children }) {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    setLoading(true);
     const stored = loadSession();
     if (stored?.user && stored?.profile) {
       setUser(stored.user);
@@ -24,8 +25,9 @@ export function AuthContextProvider({ children }) {
   // replace these with Firebase/Supabase later
   async function signIn(email, password, { remember = false } = {}) {
     try {
+      setLoading(true);
       const res = await fetch(
-        `${API_BASE}/users?=email=${encodeURIComponent(email)}`
+        `${API_BASE}/users?email=${encodeURIComponent(email)}`
       );
       if (!res.ok) throw new Error('Failed to connect to server');
       const users = await res.json();
@@ -37,7 +39,7 @@ export function AuthContextProvider({ children }) {
       const safeProfile = {
         name: foundUser.name,
         role: foundUser.role,
-        avatar: foundUser.avatar || '@/../../../public/avatars/incognito.png',
+        avatar: foundUser.avatar || './avatars/incognito.png',
       };
       setUser(safeUser);
       setProfile(safeProfile);

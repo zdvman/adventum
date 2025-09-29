@@ -1,10 +1,10 @@
 import { NavbarItem, NavbarSection } from '../catalyst-ui-kit/navbar';
 
-function HorisontalMainMenu({ navigation }) {
+function HorizontalMainMenu({ navItems }) {
   return (
     <NavbarSection className='max-lg:hidden'>
-      {navigation.map((item) => (
-        <NavbarItem key={item.href} href={item.href}>
+      {navItems.map((item) => (
+        <NavbarItem key={item.label} href={item.url}>
           {item.name}
         </NavbarItem>
       ))}
@@ -12,4 +12,4 @@ function HorisontalMainMenu({ navigation }) {
   );
 }
 
-export default HorisontalMainMenu;
+export default HorizontalMainMenu;

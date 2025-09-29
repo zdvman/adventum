@@ -35,17 +35,12 @@ import {
 
 import StaffDropdownMenu from '@/components/ui/StaffDropdownMenu';
 import Logo from '../ui/Logo';
-import HorisontalMainMenu from '../ui/HorisontalMainMenu';
+import HorizontalMainMenu from '../ui/HorizontalMainMenu';
 import { useAuth } from '@/contexts/useAuth';
 import { useNavigate } from 'react-router';
+import SearchBar from '../ui/SearchBar';
 
-const mainMenuNavigation = [
-  { name: 'Home', href: '/' },
-  { name: 'Events', href: '/events' },
-  { name: 'Orders', href: '/orders' },
-];
-
-export default function Header() {
+export default function Header({ mainMenuNavItems }) {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -61,15 +56,13 @@ export default function Header() {
           <NavbarDivider className='max-lg:hidden' />
         </>
       )}
-      <HorisontalMainMenu navigation={mainMenuNavigation} />
+      <HorizontalMainMenu navItems={mainMenuNavItems} />
       <NavbarSpacer />
       <Logo />
       <NavbarSpacer />
       <NavbarSection>
-        {/* <NavbarItem href='/search' aria-label='Search'>
-            <MagnifyingGlassIcon />
-          </NavbarItem>
-          <NavbarItem href='/inbox' aria-label='Inbox'>
+        <SearchBar />
+        {/* <NavbarItem href='/inbox' aria-label='Inbox'>
             <InboxIcon />
           </NavbarItem> */}
         {!profile ? (
