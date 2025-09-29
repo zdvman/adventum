@@ -1,6 +1,5 @@
 // src/app/router.jsx
 import { createBrowserRouter } from 'react-router-dom';
-import AppLayout from '@/components/layout/AppLayout';
 import AuthLayout from '@/components/layout/AuthLayout';
 
 import Home from '@/pages/Home';
@@ -13,6 +12,7 @@ import NotFound from '@/pages/NotFound';
 
 import RequireAuth from '@/components/auth/RequireAuth';
 import RequireStaff from '@/components/auth/RequireStaff';
+import AppLayout from '@/components/layout/AppLayout';
 
 export const router = createBrowserRouter([
   {

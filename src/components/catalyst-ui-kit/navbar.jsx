@@ -6,6 +6,7 @@ import { LayoutGroup, motion } from 'motion/react';
 import React, { forwardRef, useId } from 'react';
 import { TouchTarget } from './button';
 import { Link } from './link';
+import { useLocation } from 'react-router-dom';
 
 export function Navbar({ className, ...props }) {
   return (
@@ -51,6 +52,16 @@ export const NavbarItem = forwardRef(function NavbarItem(
 
   ref
 ) {
+  const { pathname } = useLocation();
+
+  const isActive = () => {
+    const href = props.href;
+    if (!href) return false;
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(href + '/');
+  };
+
+  const computedCurrent = current ?? isActive();
   let classes = clsx(
     // Base
     'relative flex min-w-0 items-center gap-3 rounded-lg p-2 text-left text-base/6 font-medium text-zinc-950 sm:text-sm/5',
@@ -72,7 +83,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
 
   return (
     <span className={clsx(className, 'relative')}>
-      {current && (
+      {computedCurrent && (
         <motion.span
           layoutId='current-indicator'
           className='absolute inset-x-2 -bottom-2.5 h-0.5 rounded-full bg-zinc-950 dark:bg-white'
@@ -82,7 +93,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
         <Link
           {...props}
           className={classes}
-          data-current={current ? 'true' : undefined}
+          data-current={computedCurrent ? 'true' : undefined}
           ref={ref}
         >
           <TouchTarget>{children}</TouchTarget>
@@ -91,7 +102,7 @@ export const NavbarItem = forwardRef(function NavbarItem(
         <Headless.Button
           {...props}
           className={clsx('cursor-default', classes)}
-          data-current={current ? 'true' : undefined}
+          data-current={computedCurrent ? 'true' : undefined}
           ref={ref}
         >
           <TouchTarget>{children}</TouchTarget>

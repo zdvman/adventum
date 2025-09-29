@@ -1,22 +1,16 @@
 // src/components/layout/AppLayout.jsx
 import { Outlet } from 'react-router-dom';
-import Header from './Header';
-import Footer from './Footer';
-import MainMenu from '../MainMenu';
-import Logo from '../Logo';
+import { StackedLayout } from '../catalyst-ui-kit/stacked-layout';
+import { Sidebar } from '../catalyst-ui-kit/sidebar';
+import Header from '@/components/layout/Header';
 
 export default function AppLayout() {
   return (
-    <div className='min-h-dvh flex flex-col'>
-      <Header>
-        <MainMenu>
-          <Logo />
-        </MainMenu>
-      </Header>
-      <main className='flex-1'>
-        <Outlet /> {/* children routes render here */}
-      </main>
-      <Footer />
-    </div>
+    <StackedLayout
+      navbar={<Header />}
+      // sidebar={<Sidebar>{/* Your sidebar content */}</Sidebar>}
+    >
+      <Outlet /> {/* children routes render here */}
+    </StackedLayout>
   );
 }
