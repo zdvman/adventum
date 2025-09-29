@@ -6,16 +6,12 @@ import { getAnalytics } from 'firebase/analytics';
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: 'AIzaSyCVqBLfcBTKGh1n5GgyesXxZS3Cs8M-qHM',
-  authDomain: 'adventum-6f3a6.firebaseapp.com',
-  projectId: 'adventum-6f3a6',
-  storageBucket: 'adventum-6f3a6.firebasestorage.app',
-  messagingSenderId: '92909289954',
-  appId: '1:92909289954:web:6eaa8b65ea9207099db9bb',
-  measurementId: 'G-MVLSHFSLXZ',
-};
+const cfgString = import.meta.env.VITE_FIREBASE_CONFIG;
+const firebaseConfig = cfgString ? JSON.parse(cfgString) : {};
 
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
+export let analytics;
+if (typeof window !== 'undefined' && typeof getAnalytics === 'function') {
+  analytics = getAnalytics(app);
+}
