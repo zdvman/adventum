@@ -48,20 +48,38 @@ export function NavbarSpacer({ className, ...props }) {
 }
 
 export const NavbarItem = forwardRef(function NavbarItem(
-  { current, className, children, ...props },
+  { current, exclude, className, children, ...props },
 
   ref
 ) {
   const { pathname } = useLocation();
 
-  const isActive = () => {
+  const excluded = Array.isArray(exclude) ? exclude : exclude ? [exclude] : [];
+
+  function isActiveDefault() {
     const href = props.href;
     if (!href) return false;
-    if (href === '/') return pathname === '/';
-    return pathname === href || pathname.startsWith(href + '/');
-  };
 
-  const computedCurrent = current ?? isActive();
+    // Exact for home
+    if (href === '/') return pathname === '/';
+
+    // Match exact or as a parent segment
+    let active = pathname === href || pathname.startsWith(href + '/');
+
+    // Remove activation if the current path matches any excluded prefix or exact
+    if (active && excluded.length) {
+      for (const bad of excluded) {
+        if (pathname === bad || pathname.startsWith(bad + '/')) {
+          active = false;
+          break;
+        }
+      }
+    }
+    return active;
+  }
+
+  const computedCurrent = current ?? isActiveDefault();
+
   let classes = clsx(
     // Base
     'relative flex min-w-0 items-center gap-3 rounded-lg p-2 text-left text-base/6 font-medium text-zinc-950 sm:text-sm/5',

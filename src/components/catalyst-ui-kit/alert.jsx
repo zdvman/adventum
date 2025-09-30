@@ -1,7 +1,7 @@
 import * as Headless from '@headlessui/react';
 import clsx from 'clsx';
 
-import { Text } from '../catalyst-ui-kit/javascript/text';
+import { Text } from '@/components/catalyst-ui-kit/text';
 
 const sizes = {
   xs: 'sm:max-w-xs',

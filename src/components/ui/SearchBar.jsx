@@ -7,7 +7,7 @@ function SearchBar() {
       <MagnifyingGlassIcon />
       <Input
         name='search'
-        placeholder='Search event&hellip;'
+        placeholder='Search events&hellip;'
         aria-label='Search'
       />
     </InputGroup>

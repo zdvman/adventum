@@ -6,7 +6,7 @@ function Logo({
   logoSrc = 'https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500',
 }) {
   return (
-    <div className='flex lg:flex-1'>
+    <div className='flex lg:flex-1 max-lg:hidden'>
       <NavLink to={to} className='-m-1.5 p-1.5'>
         <span className='sr-only'>Adventum</span>
         <img alt='Adventum Logo' src={logoSrc} className='h-8 w-auto' />

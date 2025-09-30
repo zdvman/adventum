@@ -1,5 +1,5 @@
 // src/app/router.jsx
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, redirect } from 'react-router-dom';
 import AuthLayout from '@/components/layout/AuthLayout';
 
 import Home from '@/pages/Home';
@@ -7,12 +7,17 @@ import EventsIndex from '@/pages/EventsIndex';
 import EventDetail from '@/pages/EventDetail';
 import CreateEvent from '@/pages/CreateEvent';
 import MyBookings from '@/pages/MyBookings';
-import AuthPage from '@/pages/AuthPage';
 import NotFound from '@/pages/NotFound';
 
 import RequireAuth from '@/components/auth/RequireAuth';
 import RequireStaff from '@/components/auth/RequireStaff';
 import AppLayout from '@/components/layout/AppLayout';
+import CheckoutStart from '@/pages/CheckoutStart';
+import CheckoutSuccess from '@/pages/CheckoutSuccess';
+import CheckoutCancel from '@/pages/CheckoutCancel';
+import AccountSettings from '@/pages/AccountSettings';
+import AuthSignUp from '@/pages/AuthSignUp';
+import AuthSignIn from '@/pages/AuthSignIn';
 
 export const router = createBrowserRouter([
   {
@@ -22,12 +27,10 @@ export const router = createBrowserRouter([
       { path: '/events', element: <EventsIndex /> },
       { path: '/events/:id', element: <EventDetail /> },
       {
-        path: '/create',
+        path: '/events/new',
         element: (
           <RequireAuth>
-            <RequireStaff>
-              <CreateEvent />
-            </RequireStaff>
+            <CreateEvent />
           </RequireAuth>
         ),
       },
@@ -39,11 +42,40 @@ export const router = createBrowserRouter([
           </RequireAuth>
         ),
       },
+      {
+        path: 'account',
+        children: [
+          { index: true, loader: () => redirect('/account/tickets') },
+          {
+            path: 'tickets',
+            element: (
+              <RequireAuth>
+                <MyBookings />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'settings',
+            element: (
+              <RequireAuth>
+                <AccountSettings />
+              </RequireAuth>
+            ),
+          },
+        ],
+      },
+
+      { path: 'checkout/:eventId', element: <CheckoutStart /> },
+      { path: 'checkout/success', element: <CheckoutSuccess /> },
+      { path: 'checkout/cancel', element: <CheckoutCancel /> },
       { path: '*', element: <NotFound /> },
     ],
   },
   {
     element: <AuthLayout />, // no header/footer
-    children: [{ path: '/auth', element: <AuthPage /> }],
+    children: [
+      { path: '/auth/sign-in', element: <AuthSignIn /> },
+      { path: '/auth/sign-up', element: <AuthSignUp /> },
+    ],
   },
 ]);
