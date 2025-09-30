@@ -3,6 +3,7 @@ import {
   Cog8ToothIcon,
   WrenchIcon,
   PlusIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/20/solid';
 import {
   Dropdown,
@@ -18,8 +19,8 @@ import { Avatar } from '../catalyst-ui-kit/avatar';
 function StaffDropdownMenu() {
   return (
     <Dropdown>
-      <DropdownButton as={NavbarItem}>
-        <WrenchIcon />
+      <DropdownButton as={NavbarItem} className='max-lg:hidden'>
+        <ShieldCheckIcon />
         {/* <Avatar src='/tailwind-logo.svg' /> */}
         <NavbarLabel>Staff Area</NavbarLabel>
         <ChevronDownIcon />

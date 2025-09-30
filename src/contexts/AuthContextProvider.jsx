@@ -4,12 +4,12 @@ import { AuthContext } from '@/contexts/AuthContext';
 import { clearSession, loadSession, saveSession } from '@/utils/storage';
 import { Avatar } from '@/components/catalyst-ui-kit/avatar';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 export function AuthContextProvider({ children }) {
   const [user, setUser] = useState(null); // { uid, email }
   const [profile, setProfile] = useState(null); // { role: 'member'|'staff', name }
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -24,8 +24,11 @@ export function AuthContextProvider({ children }) {
 
   // replace these with Firebase/Supabase later
   async function signIn(email, password, { remember = false } = {}) {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
+      if (!email || !password)
+        throw new Error('Email and password are required.');
       const res = await fetch(
         `${API_BASE}/users?email=${encodeURIComponent(email)}`
       );
@@ -39,7 +42,7 @@ export function AuthContextProvider({ children }) {
       const safeProfile = {
         name: foundUser.name,
         role: foundUser.role,
-        avatar: foundUser.avatar || './avatars/incognito.png',
+        avatar: foundUser.avatar || '/avatars/incognito.png',
       };
       setUser(safeUser);
       setProfile(safeProfile);
@@ -48,8 +51,10 @@ export function AuthContextProvider({ children }) {
         remember
       );
       return { user: safeUser, profile: safeProfile };
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error('Sign-in error:', err);
+      setError(err.message);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -60,7 +65,10 @@ export function AuthContextProvider({ children }) {
     { remember = false } = {}
   ) {
     setLoading(true);
+    setError(null);
     try {
+      if (!email || !password || !name)
+        throw new Error('All fields are required.');
       // Prevent duplicates
       const check = await fetch(
         `${API_BASE}/users?email=${encodeURIComponent(email)}`
@@ -74,13 +82,14 @@ export function AuthContextProvider({ children }) {
         body: JSON.stringify({ name, email, password, role, avatar }),
       });
       if (!res.ok) throw new Error('Failed to register user');
+
       const created = await res.json();
 
       const safeUser = { uid: String(created.id), email: created.email };
       const safeProfile = {
         name: created.name,
         role: created.role === 'staff' ? 'staff' : 'member',
-        avatar: created.avatar || null,
+        avatar: created.avatar || '/avatars/incognito.png',
       };
 
       setUser(safeUser);
@@ -90,19 +99,21 @@ export function AuthContextProvider({ children }) {
         remember
       );
       return { user: safeUser, profile: safeProfile };
+    } catch (err) {
+      console.error('Sign-up error:', err);
+      setError(err.message);
+      throw err;
     } finally {
       setLoading(false);
     }
   }
 
-  // ✅ 4. Sign out – clear everything
   async function signOut() {
     clearSession();
     setUser(null);
     setProfile(null);
   }
 
-  // ✅ 5. Provide context value
   const value = useMemo(
     () => ({
       user,
@@ -114,7 +125,7 @@ export function AuthContextProvider({ children }) {
       error,
       setError,
     }),
-    [user, profile, loading, error, setError]
+    [user, profile, loading, error]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -4,8 +4,8 @@ function HorizontalMainMenu({ navItems }) {
   return (
     <NavbarSection className='max-lg:hidden'>
       {navItems.map((item) => (
-        <NavbarItem key={item.label} href={item.url}>
-          {item.name}
+        <NavbarItem key={item.label} href={item.url} exclude={item.exclude}>
+          {item.label}
         </NavbarItem>
       ))}
     </NavbarSection>

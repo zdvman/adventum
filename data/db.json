@@ -5,8 +5,7 @@
       "email": "user@example.com",
       "password": "password123",
       "name": "Regular User",
-      "role": "member",
-      "avatar": "/avatars/john.png"
+      "role": "member"
     },
     {
       "uid": 2,
@@ -14,7 +13,7 @@
       "password": "mypassword",
       "name": "Dmytro Zuiev",
       "role": "member",
-      "avatar": "/avatars/jane.png"
+      "avatar": "/avatars/zuiev-dmytro.png"
     },
     {
       "uid": 3,
