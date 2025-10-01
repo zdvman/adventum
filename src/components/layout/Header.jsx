@@ -16,6 +16,7 @@ import {
 } from '@/components/catalyst-ui-kit/navbar';
 import {
   ArrowRightStartOnRectangleIcon,
+  ChevronDownIcon,
   Cog8ToothIcon,
   LightBulbIcon,
   ShieldCheckIcon,
@@ -25,71 +26,37 @@ import { ArrowRightEndOnRectangleIcon } from '@heroicons/react/20/solid';
 
 import StaffDropdownMenu from '@/components/ui/StaffDropdownMenu';
 import { useAuth } from '@/contexts/useAuth';
-import { useNavigate } from 'react-router';
-import HorizontalMainMenu from '@/components/ui/HorizontalMainMenu';
 import Logo from '@/components/ui/Logo';
 import SearchBar from '@/components/ui/SearchBar';
+import MainMenu from '../ui/MainMenu';
+import UserMenu from '../ui/UserMenu';
 
 export default function Header({ mainMenuNavItems }) {
-  const { profile, signOut } = useAuth();
-  const navigate = useNavigate();
+  const { profile } = useAuth();
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/');
-  };
   return (
-    <>
+    <Navbar>
       <Logo />
-      <Navbar>
-        {profile?.role === 'staff' && (
-          <>
-            <StaffDropdownMenu />
-            {/* <NavbarDivider className='max-lg:hidden' /> */}
-          </>
+      {profile?.role === 'staff' && (
+        <StaffDropdownMenu className='max-lg:hidden' />
+      )}
+      <SearchBar className='hidden lg:block w-full max-w-md' />
+      <MainMenu
+        navItems={mainMenuNavItems}
+        variant='navbar'
+        className='max-lg:hidden'
+      />
+      <NavbarSpacer />
+      <NavbarSection>
+        {!profile ? (
+          <NavbarItem href='/auth/sign-in' aria-label='Sign in'>
+            <span className='hidden lg:inline'>Sign in</span>
+            <ArrowRightEndOnRectangleIcon className='lg:hidden size-5' />
+          </NavbarItem>
+        ) : (
+          <UserMenu />
         )}
-        <SearchBar />
-        <HorizontalMainMenu navItems={mainMenuNavItems} />
-        <NavbarSpacer />
-        <NavbarSection>
-          {!profile ? (
-            <NavbarItem href='/auth/sign-in' aria-label='Auth SignIn'>
-              Sign in
-              <ArrowRightEndOnRectangleIcon />
-            </NavbarItem>
-          ) : (
-            <Dropdown>
-              <DropdownButton as={NavbarItem}>
-                <Avatar src={profile?.avatar} square />
-              </DropdownButton>
-              <DropdownMenu className='min-w-64' anchor='bottom end'>
-                <DropdownItem href='/my-profile'>
-                  <UserIcon />
-                  <DropdownLabel>My profile</DropdownLabel>
-                </DropdownItem>
-                <DropdownItem href='/settings'>
-                  <Cog8ToothIcon />
-                  <DropdownLabel>Settings</DropdownLabel>
-                </DropdownItem>
-                <DropdownDivider />
-                <DropdownItem href='/privacy-policy'>
-                  <ShieldCheckIcon />
-                  <DropdownLabel>Privacy policy</DropdownLabel>
-                </DropdownItem>
-                <DropdownItem href='/share-feedback'>
-                  <LightBulbIcon />
-                  <DropdownLabel>Share feedback</DropdownLabel>
-                </DropdownItem>
-                <DropdownDivider />
-                <DropdownItem as='button' onClick={handleSignOut}>
-                  <ArrowRightStartOnRectangleIcon />
-                  <DropdownLabel>Sign out</DropdownLabel>
-                </DropdownItem>
-              </DropdownMenu>
-            </Dropdown>
-          )}
-        </NavbarSection>
-      </Navbar>
-    </>
+      </NavbarSection>
+    </Navbar>
   );
 }

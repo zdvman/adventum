@@ -1,10 +1,4 @@
-import {
-  ChevronDownIcon,
-  Cog8ToothIcon,
-  WrenchIcon,
-  PlusIcon,
-  ShieldCheckIcon,
-} from '@heroicons/react/20/solid';
+// src/components/ui/StaffDropdownMenu.jsx
 import {
   Dropdown,
   DropdownButton,
@@ -12,20 +6,26 @@ import {
   DropdownItem,
   DropdownLabel,
   DropdownMenu,
-} from '../catalyst-ui-kit/dropdown';
-import { NavbarItem, NavbarLabel } from '../catalyst-ui-kit/navbar';
-import { Avatar } from '../catalyst-ui-kit/avatar';
+} from '@/components/catalyst-ui-kit/dropdown';
+import { Avatar } from '@/components/catalyst-ui-kit/avatar';
+import {
+  ChevronDownIcon,
+  Cog8ToothIcon,
+  PlusIcon,
+  ShieldCheckIcon,
+} from '@heroicons/react/20/solid';
+import { SidebarItem, SidebarLabel } from '../catalyst-ui-kit/sidebar';
 
-function StaffDropdownMenu() {
+export default function StaffDropdownMenu({ className }) {
   return (
     <Dropdown>
-      <DropdownButton as={NavbarItem} className='max-lg:hidden'>
+      <DropdownButton as={SidebarItem} className={className}>
         <ShieldCheckIcon />
         {/* <Avatar src='/tailwind-logo.svg' /> */}
-        <NavbarLabel>Staff Area</NavbarLabel>
+        <SidebarLabel>Staff Area</SidebarLabel>
         <ChevronDownIcon />
       </DropdownButton>
-      <DropdownMenu className='min-w-64' anchor='bottom start'>
+      <DropdownMenu className='min-w-80 lg:min-w-64' anchor='bottom start'>
         <DropdownItem href='/teams/1/settings'>
           <Cog8ToothIcon />
           <DropdownLabel>Settings</DropdownLabel>
@@ -52,5 +52,3 @@ function StaffDropdownMenu() {
     </Dropdown>
   );
 }
-
-export default StaffDropdownMenu;
