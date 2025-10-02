@@ -74,7 +74,7 @@ function AuthSignIn() {
             <Label>Remember me</Label>
           </CheckboxField>
           <Text>
-            <TextLink href='#'>
+            <TextLink href='/auth/reset'>
               <Strong>Forgot password?</Strong>
             </TextLink>
           </Text>
@@ -84,7 +84,7 @@ function AuthSignIn() {
         </Button>
         <Text>
           Don’t have an account?{' '}
-          <TextLink href='/signup'>
+          <TextLink href='/auth/sign-up'>
             <Strong>Sign up</Strong>
           </TextLink>
         </Text>

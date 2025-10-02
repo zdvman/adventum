@@ -18,6 +18,7 @@ import CheckoutCancel from '@/pages/CheckoutCancel';
 import AccountSettings from '@/pages/AccountSettings';
 import AuthSignUp from '@/pages/AuthSignUp';
 import AuthSignIn from '@/pages/AuthSignIn';
+import AuthResetPassword from '@/pages/AuthResetPassword';
 
 export const router = createBrowserRouter([
   {
@@ -76,6 +77,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/auth/sign-in', element: <AuthSignIn /> },
       { path: '/auth/sign-up', element: <AuthSignUp /> },
+      { path: '/auth/reset', element: <AuthResetPassword /> },
     ],
   },
 ]);
