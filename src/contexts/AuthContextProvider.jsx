@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AuthContext } from '@/contexts/AuthContext';
 import { clearSession, loadSession, saveSession } from '@/utils/storage';
-import { Avatar } from '@/components/catalyst-ui-kit/avatar';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 

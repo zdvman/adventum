@@ -29,7 +29,11 @@ function UserMenu() {
   return (
     <Dropdown>
       <DropdownButton as={NavbarItem}>
-        <Avatar src={profile?.avatar} square />
+        {profile?.avatar ? (
+          <Avatar src={profile?.avatar} square />
+        ) : (
+          <UserIcon />
+        )}
         <span className='hidden lg:inline'>{profile?.name}</span>
         <ChevronDownIcon className='hidden lg:inline' />
       </DropdownButton>
