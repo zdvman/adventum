@@ -1,27 +1,372 @@
 {
   "users": [
     {
-      "uid": 1,
-      "email": "user@example.com",
-      "password": "password123",
-      "name": "Regular User",
-      "role": "member"
+      "id": 1,
+      "email": "member@example.com",
+      "password": "member123",
+      "name": "Alex Member",
+      "role": "member",
+      "avatar": "/avatars/member.png",
+      "createdAt": "2025-09-01T09:00:00Z"
     },
     {
-      "uid": 2,
+      "id": 2,
       "email": "zdv@example.com",
       "password": "mypassword",
       "name": "Dmytro Zuiev",
       "role": "member",
-      "avatar": "/avatars/zuiev-dmytro.png"
+      "avatar": "/avatars/zuiev-dmytro.png",
+      "createdAt": "2025-09-01T09:00:00Z"
     },
     {
-      "uid": 3,
+      "id": 3,
       "email": "admin@example.com",
       "password": "admin123",
       "name": "Admin Staff",
       "role": "staff",
-      "avatar": "/avatars/admin.png"
+      "avatar": "/avatars/admin.png",
+      "createdAt": "2025-09-01T09:00:00Z"
+    },
+    {
+      "id": 4,
+      "email": "sara.staff@example.com",
+      "password": "staff123",
+      "name": "Sara Staff",
+      "role": "staff",
+      "avatar": "/avatars/staff-1.png",
+      "createdAt": "2025-09-01T09:00:00Z"
+    },
+    {
+      "id": 5,
+      "email": "jamie.member@example.com",
+      "password": "pass1234",
+      "name": "Jamie Member",
+      "role": "member",
+      "avatar": "/avatars/member-2.png",
+      "createdAt": "2025-09-01T09:00:00Z"
+    },
+    {
+      "id": 6,
+      "email": "li.member@example.com",
+      "password": "pass1234",
+      "name": "Li Chen",
+      "role": "member",
+      "avatar": "/avatars/member-3.png",
+      "createdAt": "2025-09-01T09:00:00Z"
+    },
+    {
+      "id": 7,
+      "email": "mike.staff@example.com",
+      "password": "staff123",
+      "name": "Mike Organizer",
+      "role": "staff",
+      "avatar": "/avatars/staff-2.png",
+      "createdAt": "2025-09-01T09:00:00Z"
+    },
+    {
+      "id": 8,
+      "email": "ella.member@example.com",
+      "password": "pass1234",
+      "name": "Ella Rossi",
+      "role": "member",
+      "avatar": "/avatars/member-4.png",
+      "createdAt": "2025-09-01T09:00:00Z"
+    }
+  ],
+
+  "organizers": [
+    { "id": 1, "name": "Community Hub Manchester", "ownerUserId": 3 },
+    { "id": 2, "name": "City Arts Collective", "ownerUserId": 4 },
+    { "id": 3, "name": "Northern Events", "ownerUserId": 7 }
+  ],
+
+  "categories": [
+    { "id": 1, "name": "Comedy", "slug": "comedy" },
+    { "id": 2, "name": "Music", "slug": "music" },
+    { "id": 3, "name": "Workshops", "slug": "workshops" },
+    { "id": 4, "name": "Talks", "slug": "talks" },
+    { "id": 5, "name": "Family", "slug": "family" }
+  ],
+
+  "venues": [
+    {
+      "id": 1,
+      "name": "Albert Hall",
+      "address": "27 Peter St",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.4786,
+      "lng": -2.2477
+    },
+    {
+      "id": 2,
+      "name": "HOME Manchester",
+      "address": "2 Tony Wilson Pl",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.4736,
+      "lng": -2.2468
+    },
+    {
+      "id": 3,
+      "name": "Royal Exchange Theatre",
+      "address": "St Ann's Square",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.4825,
+      "lng": -2.244
+    },
+    {
+      "id": 4,
+      "name": "The Deaf Institute",
+      "address": "135 Grosvenor St",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.4688,
+      "lng": -2.2368
+    },
+    {
+      "id": 5,
+      "name": "Science and Industry Museum",
+      "address": "Liverpool Rd",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.4763,
+      "lng": -2.2553
+    },
+    {
+      "id": 6,
+      "name": "Manchester Central Library",
+      "address": "St Peter's Square",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.477,
+      "lng": -2.2446
+    },
+    {
+      "id": 7,
+      "name": "Castlefield Bowl",
+      "address": "Rice St",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.4755,
+      "lng": -2.2558
+    },
+    {
+      "id": 8,
+      "name": "The Lowry",
+      "address": "Pier 8, Salford Quays",
+      "city": "Manchester",
+      "country": "UK",
+      "lat": 53.47,
+      "lng": -2.2985
+    }
+  ],
+
+  "events": [
+    {
+      "id": 101,
+      "title": "Stand-up Comedy Night",
+      "slug": "standup-comedy-night",
+      "description": "Local comedians, friendly crowd. English language.",
+      "image": "/images/events/standup.jpg",
+      "categoryId": 1,
+      "venueId": 1,
+      "organizerId": 1,
+      "moderationStatus": "approved",
+      "publishStatus": "published",
+      "priceType": "fixed",
+      "price": 12.5,
+      "currency": "GBP",
+      "capacity": 120,
+      "ticketsAvailable": 88,
+      "start": "2025-10-23T19:00:00+01:00",
+      "end": "2025-10-23T21:00:00+01:00",
+      "timezone": "Europe/London",
+      "tags": ["comedy", "night"]
+    },
+    {
+      "id": 102,
+      "title": "Beginner Guitar Workshop",
+      "slug": "beginner-guitar-workshop",
+      "description": "Bring your guitar. Learn chords, rhythm and a song.",
+      "image": "/images/events/guitar.jpg",
+      "categoryId": 3,
+      "venueId": 2,
+      "organizerId": 2,
+      "moderationStatus": "approved",
+      "publishStatus": "published",
+      "priceType": "free",
+      "price": null,
+      "currency": "GBP",
+      "capacity": 30,
+      "ticketsAvailable": 12,
+      "start": "2025-10-25T17:00:00+01:00",
+      "end": "2025-10-25T19:00:00+01:00",
+      "timezone": "Europe/London",
+      "tags": ["music", "workshop"]
+    },
+    {
+      "id": 103,
+      "title": "Pottery (Pay what you feel)",
+      "slug": "pottery-pay-what-you-feel",
+      "description": "Clay session for all levels. Materials included.",
+      "image": "/images/events/pottery.jpg",
+      "categoryId": 3,
+      "venueId": 6,
+      "organizerId": 1,
+      "moderationStatus": "approved",
+      "publishStatus": "scheduled",
+      "priceType": "payWhatYouWant",
+      "price": 5,
+      "currency": "GBP",
+      "capacity": 20,
+      "ticketsAvailable": 18,
+      "start": "2025-11-01T14:00:00+00:00",
+      "end": "2025-11-01T16:00:00+00:00",
+      "timezone": "Europe/London",
+      "tags": ["crafts", "community"]
+    },
+    {
+      "id": 104,
+      "title": "Family Science Day",
+      "slug": "family-science-day",
+      "description": "Hands-on experiments for families.",
+      "image": "/images/events/science.jpg",
+      "categoryId": 5,
+      "venueId": 5,
+      "organizerId": 3,
+      "moderationStatus": "pending",
+      "publishStatus": "draft",
+      "priceType": "fixed",
+      "price": 6,
+      "currency": "GBP",
+      "capacity": 200,
+      "ticketsAvailable": 200,
+      "start": "2025-11-10T10:00:00+00:00",
+      "end": "2025-11-10T15:00:00+00:00",
+      "timezone": "Europe/London",
+      "tags": ["family", "science"]
+    },
+    {
+      "id": 105,
+      "title": "Indie Night Live",
+      "slug": "indie-night-live",
+      "description": "Live indie bands at Castlefield Bowl.",
+      "image": "/images/events/indie.jpg",
+      "categoryId": 2,
+      "venueId": 7,
+      "organizerId": 3,
+      "moderationStatus": "approved",
+      "publishStatus": "cancelled",
+      "priceType": "fixed",
+      "price": 18,
+      "currency": "GBP",
+      "capacity": 500,
+      "ticketsAvailable": 500,
+      "start": "2025-10-30T18:30:00+00:00",
+      "end": "2025-10-30T22:00:00+00:00",
+      "timezone": "Europe/London",
+      "tags": ["music", "indie"]
+    },
+    {
+      "id": 106,
+      "title": "Tech Talk: Practical React Patterns",
+      "slug": "tech-talk-react-patterns",
+      "description": "A practical session on React composition and routing.",
+      "image": "/images/events/tech.jpg",
+      "categoryId": 4,
+      "venueId": 6,
+      "organizerId": 2,
+      "moderationStatus": "approved",
+      "publishStatus": "published",
+      "priceType": "free",
+      "price": null,
+      "currency": "GBP",
+      "capacity": 80,
+      "ticketsAvailable": 20,
+      "start": "2025-10-28T18:00:00+00:00",
+      "end": "2025-10-28T20:00:00+00:00",
+      "timezone": "Europe/London",
+      "tags": ["tech", "talk"]
+    },
+    {
+      "id": 107,
+      "title": "Comedy Open Mic (Awaiting Review)",
+      "slug": "comedy-open-mic-pending",
+      "description": "New performers welcome. Sign up on arrival.",
+      "image": "/images/events/openmic.jpg",
+      "categoryId": 1,
+      "venueId": 4,
+      "organizerId": 1,
+      "moderationStatus": "pending",
+      "publishStatus": "draft",
+      "priceType": "free",
+      "price": null,
+      "currency": "GBP",
+      "capacity": 60,
+      "ticketsAvailable": 60,
+      "start": "2025-11-05T19:00:00+00:00",
+      "end": "2025-11-05T21:00:00+00:00",
+      "timezone": "Europe/London",
+      "tags": ["comedy", "openmic"]
+    },
+    {
+      "id": 108,
+      "title": "Art Workshop: Watercolours",
+      "slug": "art-workshop-watercolours",
+      "description": "Explore watercolour basics. Materials provided.",
+      "image": "/images/events/art.jpg",
+      "categoryId": 3,
+      "venueId": 2,
+      "organizerId": 2,
+      "moderationStatus": "rejected",
+      "publishStatus": "archived",
+      "priceType": "fixed",
+      "price": 9,
+      "currency": "GBP",
+      "capacity": 25,
+      "ticketsAvailable": 0,
+      "start": "2025-09-10T17:00:00+01:00",
+      "end": "2025-09-10T19:00:00+01:00",
+      "timezone": "Europe/London",
+      "tags": ["art", "workshop"]
+    }
+  ],
+
+  "bookings": [
+    {
+      "id": 9001,
+      "eventId": 101,
+      "userId": 2,
+      "qty": 2,
+      "total": 25.0,
+      "currency": "GBP",
+      "status": "paid",
+      "calendarAdded": false,
+      "createdAt": "2025-10-01T12:00:00Z"
+    },
+    {
+      "id": 9002,
+      "eventId": 102,
+      "userId": 1,
+      "qty": 1,
+      "total": 0,
+      "currency": "GBP",
+      "status": "reserved",
+      "calendarAdded": true,
+      "createdAt": "2025-10-02T10:00:00Z"
+    },
+    {
+      "id": 9003,
+      "eventId": 106,
+      "userId": 5,
+      "qty": 1,
+      "total": 0,
+      "currency": "GBP",
+      "status": "paid",
+      "calendarAdded": false,
+      "createdAt": "2025-10-03T18:30:00Z"
     }
   ]
 }
