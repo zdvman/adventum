@@ -11,7 +11,7 @@ import { Heading } from '@/components/catalyst-ui-kit/heading';
 import { Input, InputGroup } from '@/components/catalyst-ui-kit/input';
 import { Link } from '@/components/catalyst-ui-kit/link';
 import { Select } from '@/components/catalyst-ui-kit/select';
-import { TextLink } from '@/components/catalyst-ui-kit/text';
+import { Strong, TextLink } from '@/components/catalyst-ui-kit/text';
 import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
@@ -74,26 +74,26 @@ export default function EventsIndex() {
             <div className='flex items-center justify-between'>
               <div key={event.id} className='flex gap-6 py-6'>
                 <div className='w-32 shrink-0'>
-                  <Link href={event.url} aria-hidden='true'>
+                  <Link href={`/events/${event.slug}`} aria-hidden='true'>
                     <img
                       className='aspect-3/2 rounded-lg shadow-sm'
                       src={event.image}
-                      alt=''
+                      alt={event.title}
                     />
                   </Link>
                 </div>
                 <div className='space-y-1.5'>
-                  <div className='text-base/6 font-semibold'>
-                    <TextLink href={`/events/${event.slug}`}>
-                      {event.title}
-                    </TextLink>
-                  </div>
+                  {/* <div className='text-base/6 font-semibold'> */}
+                  <TextLink href={`/events/${event.slug}`}>
+                    <Strong>{event.title}</Strong>
+                  </TextLink>
+                  {/* </div> */}
                   <div className='text-xs/6 text-zinc-500'>
                     {event.date} at {event.time}{' '}
                     <span aria-hidden='true'>·</span> {event.location}
                   </div>
                   <div className='text-xs/6 text-zinc-600'>
-                    {event.ticketsSold}/{event.ticketsAvailable} tickets sold
+                    Available tickets {event.ticketsAvailable}/{event.capacity}
                   </div>
                 </div>
               </div>
@@ -102,14 +102,16 @@ export default function EventsIndex() {
                   className='max-sm:hidden'
                   color={event.status === 'On Sale' ? 'lime' : 'zinc'}
                 >
-                  {event.status}
+                  {event.status}badge
                 </Badge>
                 <Dropdown>
                   <DropdownButton plain aria-label='More options'>
                     <EllipsisVerticalIcon />
                   </DropdownButton>
                   <DropdownMenu anchor='bottom end'>
-                    <DropdownItem href={event.url}>View</DropdownItem>
+                    <DropdownItem href={`/events/${event.slug}`}>
+                      View
+                    </DropdownItem>
                     <DropdownItem>Edit</DropdownItem>
                     <DropdownItem>Delete</DropdownItem>
                   </DropdownMenu>

@@ -71,23 +71,60 @@
       "role": "member",
       "avatar": "/avatars/member-4.png",
       "createdAt": "2025-09-01T09:00:00Z"
+    },
+    {
+      "id": "4f48",
+      "name": "Olena Zuieva",
+      "email": "zuyeva81@gmail.com",
+      "password": "159753",
+      "role": "member",
+      "avatar": "https://scontent-vie1-1.xx.fbcdn.net/v/t39.30808-6/498208326_9867305656689564_4482410388895963379_n.jpg?_nc_cat=108&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=TugTAat2rAoQ7kNvwFdjJ-4&_nc_oc=AdlqkqN3aZe80jqJbbtGZPPnOwn6gcr--cBtlAKEa4wsUQKuqfmvJmsNkGzFD_te3Rk&_nc_zt=23&_nc_ht=scontent-vie1-1.xx&_nc_gid=EKL7YswjrCxo0djCBUHA3w&oh=00_AfZs1lgKZnF8IxPzgMxnqt23ERAHv19hXnUR3hQE2wZc7Q&oe=68E4A776"
     }
   ],
-
   "organizers": [
-    { "id": 1, "name": "Community Hub Manchester", "ownerUserId": 3 },
-    { "id": 2, "name": "City Arts Collective", "ownerUserId": 4 },
-    { "id": 3, "name": "Northern Events", "ownerUserId": 7 }
+    {
+      "id": 1,
+      "name": "Community Hub Manchester",
+      "ownerUserId": 3
+    },
+    {
+      "id": 2,
+      "name": "City Arts Collective",
+      "ownerUserId": 4
+    },
+    {
+      "id": 3,
+      "name": "Northern Events",
+      "ownerUserId": 7
+    }
   ],
-
   "categories": [
-    { "id": 1, "name": "Comedy", "slug": "comedy" },
-    { "id": 2, "name": "Music", "slug": "music" },
-    { "id": 3, "name": "Workshops", "slug": "workshops" },
-    { "id": 4, "name": "Talks", "slug": "talks" },
-    { "id": 5, "name": "Family", "slug": "family" }
+    {
+      "id": 1,
+      "name": "Comedy",
+      "slug": "comedy"
+    },
+    {
+      "id": 2,
+      "name": "Music",
+      "slug": "music"
+    },
+    {
+      "id": 3,
+      "name": "Workshops",
+      "slug": "workshops"
+    },
+    {
+      "id": 4,
+      "name": "Talks",
+      "slug": "talks"
+    },
+    {
+      "id": 5,
+      "name": "Family",
+      "slug": "family"
+    }
   ],
-
   "venues": [
     {
       "id": 1,
@@ -162,7 +199,6 @@
       "lng": -2.2985
     }
   ],
-
   "events": [
     {
       "id": 101,
@@ -183,7 +219,10 @@
       "start": "2025-10-23T19:00:00+01:00",
       "end": "2025-10-23T21:00:00+01:00",
       "timezone": "Europe/London",
-      "tags": ["comedy", "night"]
+      "tags": [
+        "comedy",
+        "night"
+      ]
     },
     {
       "id": 102,
@@ -204,7 +243,10 @@
       "start": "2025-10-25T17:00:00+01:00",
       "end": "2025-10-25T19:00:00+01:00",
       "timezone": "Europe/London",
-      "tags": ["music", "workshop"]
+      "tags": [
+        "music",
+        "workshop"
+      ]
     },
     {
       "id": 103,
@@ -225,7 +267,10 @@
       "start": "2025-11-01T14:00:00+00:00",
       "end": "2025-11-01T16:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": ["crafts", "community"]
+      "tags": [
+        "crafts",
+        "community"
+      ]
     },
     {
       "id": 104,
@@ -246,7 +291,10 @@
       "start": "2025-11-10T10:00:00+00:00",
       "end": "2025-11-10T15:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": ["family", "science"]
+      "tags": [
+        "family",
+        "science"
+      ]
     },
     {
       "id": 105,
@@ -267,7 +315,10 @@
       "start": "2025-10-30T18:30:00+00:00",
       "end": "2025-10-30T22:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": ["music", "indie"]
+      "tags": [
+        "music",
+        "indie"
+      ]
     },
     {
       "id": 106,
@@ -288,7 +339,10 @@
       "start": "2025-10-28T18:00:00+00:00",
       "end": "2025-10-28T20:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": ["tech", "talk"]
+      "tags": [
+        "tech",
+        "talk"
+      ]
     },
     {
       "id": 107,
@@ -309,7 +363,10 @@
       "start": "2025-11-05T19:00:00+00:00",
       "end": "2025-11-05T21:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": ["comedy", "openmic"]
+      "tags": [
+        "comedy",
+        "openmic"
+      ]
     },
     {
       "id": 108,
@@ -330,17 +387,19 @@
       "start": "2025-09-10T17:00:00+01:00",
       "end": "2025-09-10T19:00:00+01:00",
       "timezone": "Europe/London",
-      "tags": ["art", "workshop"]
+      "tags": [
+        "art",
+        "workshop"
+      ]
     }
   ],
-
   "bookings": [
     {
       "id": 9001,
       "eventId": 101,
       "userId": 2,
       "qty": 2,
-      "total": 25.0,
+      "total": 25,
       "currency": "GBP",
       "status": "paid",
       "calendarAdded": false,
