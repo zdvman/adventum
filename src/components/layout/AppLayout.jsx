@@ -6,6 +6,7 @@ import SidebarBlock from './SidebarBlock';
 import { useAuth } from '@/contexts/useAuth';
 import AlertPopup from '@/components/ui/AlertPopup';
 import { useEffect } from 'react';
+import Breadcrumbs from '@/components/ui/Breadcrumbs';
 
 const mainMenuNavItems = [
   {
@@ -24,12 +25,28 @@ export default function AppLayout() {
     if (error) setError(null);
   }, [location.pathname]);
 
+  function resolveLabel({ segment, index, segments }) {
+    const isEventDetail =
+      segments[0] === 'events' &&
+      index === segments.length - 1 &&
+      segment !== 'new';
+
+    if (isEventDetail) {
+      // Example: look up real event name from a global store, context, or hook
+      const events = JSON.parse(localStorage.getItem('events') || '{}');
+      return events[segment]?.title; // fallback handled if undefined
+    }
+    return undefined;
+  }
+
   return (
     <>
       <StackedLayout
         navbar={<Header mainMenuNavItems={mainMenuNavItems} />}
         sidebar={<SidebarBlock mainMenuNavItems={mainMenuNavItems} />}
       >
+        <Breadcrumbs className='lg:mb-2.5' resolveLabel={resolveLabel} />
+
         <Outlet />
       </StackedLayout>
       {error && (

@@ -20,7 +20,7 @@ import {
 import { useNavigate } from 'react-router';
 
 function UserMenu() {
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, user } = useAuth();
   const navigate = useNavigate();
   const handleSignOut = async () => {
     await signOut();
@@ -34,7 +34,7 @@ function UserMenu() {
         ) : (
           <UserIcon />
         )}
-        <span className='hidden lg:inline'>{profile?.name}</span>
+        <span className='hidden lg:inline'>{profile?.name || user?.email}</span>
         <ChevronDownIcon className='hidden lg:inline' />
       </DropdownButton>
       <DropdownMenu className='min-w-64' anchor='bottom end'>

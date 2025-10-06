@@ -1,3 +1,8 @@
+// src/pages/EventsIndex.jsx
+import { useEffect, useMemo, useState } from 'react';
+import { db } from '@/services/firebase';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+
 import { Badge } from '@/components/catalyst-ui-kit/badge';
 import { Button } from '@/components/catalyst-ui-kit/button';
 import { Divider } from '@/components/catalyst-ui-kit/divider';
@@ -12,37 +17,72 @@ import { Input, InputGroup } from '@/components/catalyst-ui-kit/input';
 import { Link } from '@/components/catalyst-ui-kit/link';
 import { Select } from '@/components/catalyst-ui-kit/select';
 import { Strong, TextLink } from '@/components/catalyst-ui-kit/text';
+import { formatDate, formatTime24 } from '@/utils/FormatTimeStamp';
 import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/16/solid';
-import { useEffect, useState } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
-// export const metadata = {
-//   title: 'Events',
-// };
+import { composeIdSlug } from '@/utils/slug';
 
 export default function EventsIndex() {
   const [events, setEvents] = useState([]);
+  const [venuesMap, setVenuesMap] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState(null);
+
   useEffect(() => {
-    async function getEvents() {
+    async function load() {
+      setLoading(true);
+      setErr(null);
       try {
-        const res = await fetch(`${API_BASE}/events`);
-        if (!res.ok) throw new Error('Failed to connect to server');
-        const data = await res.json();
-        // console.log(data);
-        if (!data.length) throw new Error('No events in the list');
-        setEvents(data);
-      } catch (err) {
-        console.error(err.message);
+        // 1) Fetch venues (small list → fine to load all and map by id)
+        const vSnap = await getDocs(collection(db, 'venues'));
+        const vMap = {};
+        vSnap.forEach((d) => (vMap[d.id] = { id: d.id, ...d.data() }));
+        setVenuesMap(vMap);
+
+        // 2) Fetch only future, approved, published events (ordered soonest first)
+        const nowIso = new Date().toISOString();
+        const qy = query(
+          collection(db, 'events'),
+          where('endsAt', '>', nowIso),
+          where('publishStatus', '==', 'published'),
+          where('moderationStatus', '==', 'approved'),
+          orderBy('endsAt', 'asc')
+        );
+        const eSnap = await getDocs(qy);
+        const list = [];
+        eSnap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+        setEvents(list);
+      } catch (e) {
+        console.error(e);
+        setErr(e.message || 'Failed to load events');
       } finally {
-        console.log(events);
+        setLoading(false);
       }
     }
-    getEvents();
+    load();
   }, []);
+
+  const rows = useMemo(() => {
+    return events.map((ev) => {
+      const venue = venuesMap[ev.venueId];
+      const ticketsAvailable = Math.max(
+        0,
+        (ev.capacity ?? 0) - (ev.ticketsSold ?? 0)
+      );
+      const onSale = ticketsAvailable > 0;
+      const idSlug = composeIdSlug(ev.id, ev.title);
+      return { ev, venue, ticketsAvailable, onSale, idSlug };
+    });
+  }, [events, venuesMap]);
+
+  if (loading) {
+    return <div className='py-10 text-sm text-zinc-500'>Loading events…</div>;
+  }
+  if (err) {
+    return <div className='py-10 text-sm text-red-500'>{err}</div>;
+  }
 
   return (
     <>
@@ -65,55 +105,59 @@ export default function EventsIndex() {
             </div>
           </div>
         </div>
-        <Button>Create event</Button>
+        <Button href='/events/new'>Create event</Button>
       </div>
+
       <ul className='mt-10'>
-        {events.map((event, index) => (
-          <li key={event.id}>
-            <Divider soft={index > 0} />
+        {rows.map(({ ev, venue, ticketsAvailable, onSale, idSlug }, idx) => (
+          <li key={ev.id}>
+            <Divider soft={idx > 0} />
             <div className='flex items-center justify-between'>
-              <div key={event.id} className='flex gap-6 py-6'>
+              <div className='flex gap-6 py-6'>
                 <div className='w-32 shrink-0'>
-                  <Link href={`/events/${event.slug}`} aria-hidden='true'>
+                  <Link href={`/events/${idSlug}`} aria-hidden='true'>
                     <img
                       className='aspect-3/2 rounded-lg shadow-sm'
-                      src={event.image}
-                      alt={event.title}
+                      src={ev.image}
+                      alt={ev.title}
                     />
                   </Link>
                 </div>
                 <div className='space-y-1.5'>
-                  {/* <div className='text-base/6 font-semibold'> */}
-                  <TextLink href={`/events/${event.slug}`}>
-                    <Strong>{event.title}</Strong>
+                  <TextLink href={`/events/${idSlug}`}>
+                    <Strong>{ev.title}</Strong>
                   </TextLink>
-                  {/* </div> */}
+
                   <div className='text-xs/6 text-zinc-500'>
-                    {event.date} at {event.time}{' '}
-                    <span aria-hidden='true'>·</span> {event.location}
+                    {formatDate(ev.startsAt)} at {formatTime24(ev.startsAt)}{' '}
+                    <span aria-hidden='true'>·</span>{' '}
+                    {venue ? `${venue.city}, ${venue.country}` : '—'}
                   </div>
+
                   <div className='text-xs/6 text-zinc-600'>
-                    Available tickets {event.ticketsAvailable}/{event.capacity}
+                    Available tickets {ticketsAvailable}/{ev.capacity ?? 0}
                   </div>
                 </div>
               </div>
+
               <div className='flex items-center gap-4'>
                 <Badge
                   className='max-sm:hidden'
-                  color={event.status === 'On Sale' ? 'lime' : 'zinc'}
+                  color={onSale ? 'lime' : 'zinc'}
                 >
-                  {event.status}badge
+                  {onSale ? 'On Sale' : 'Closed'}
                 </Badge>
+
                 <Dropdown>
                   <DropdownButton plain aria-label='More options'>
                     <EllipsisVerticalIcon />
                   </DropdownButton>
                   <DropdownMenu anchor='bottom end'>
-                    <DropdownItem href={`/events/${event.slug}`}>
-                      View
+                    <DropdownItem href={`/events/${idSlug}`}>View</DropdownItem>
+                    <DropdownItem href={`/events/${ev.id}/edit`}>
+                      Edit
                     </DropdownItem>
-                    <DropdownItem>Edit</DropdownItem>
-                    <DropdownItem>Delete</DropdownItem>
+                    <DropdownItem as='button'>Delete</DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
               </div>
