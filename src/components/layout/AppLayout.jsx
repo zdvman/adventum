@@ -12,7 +12,7 @@ const mainMenuNavItems = [
   {
     label: 'Find Events',
     url: '/events',
-    exclude: ['/events/new', '/events/:id', '/events/*/edit'],
+    exclude: ['/events/new', '/events/:idSlug', '/events/*/edit'],
   },
   { label: 'Create Event', url: '/events/new' },
 ];
