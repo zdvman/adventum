@@ -84,10 +84,14 @@ export default function DevSeed() {
       venueRefs.push({ id: ref.id, ...v });
     }
 
-    // 3) Get category ids
+    // 3) Get categories back with ids
     const catsSnap = await getDocs(collection(db, 'categories'));
+    // Build a map: slug -> { id, name }
     const bySlug = {};
-    catsSnap.forEach((d) => (bySlug[d.data().slug] = d.id));
+    catsSnap.forEach((d) => {
+      const data = d.data();
+      bySlug[data.slug] = { id: d.id, name: data.name };
+    });
 
     // helpers to make future dates
     const inDays = (days, hour = 19, durHours = 2) => {
@@ -98,19 +102,40 @@ export default function DevSeed() {
       return { startsAt: start.toISOString(), endsAt: end.toISOString() };
     };
 
-    // 4) Events (published, approved, future)
+    // 4) Events (published, approved, future) – extended fields
     const samples = [
       {
         title: 'Stand-up Night',
         description: 'Local comedians, friendly crowd.',
+        aboutHtml: `<p>Join us for an evening of laughs with rising stars and seasoned comics.</p>`,
         image: '/images/events/standup.jpg',
-        categoryId: bySlug['comedy'],
+        categoryId: bySlug['comedy'].id,
+        categoryName: bySlug['comedy'].name,
         venueId: venueRefs[0].id,
         priceType: 'fixed',
         price: 12.5,
         currency: 'GBP',
+        ticketTypes: [
+          {
+            id: 'early',
+            name: 'Early Bird',
+            price: 9.5,
+            currency: 'GBP',
+            available: true,
+          },
+          {
+            id: 'std',
+            name: 'Standard',
+            price: 12.5,
+            currency: 'GBP',
+            available: true,
+          },
+        ],
         capacity: 120,
         ticketsSold: 22,
+        refundPolicy: 'Refunds available up to 24 hours before event.',
+        organizerName: 'Manchester Comedy Club',
+        organizerWebsite: 'https://example.com/mcc',
         moderationStatus: 'approved',
         publishStatus: 'published',
         ...inDays(5, 20),
@@ -118,14 +143,28 @@ export default function DevSeed() {
       {
         title: 'Watercolour Workshop',
         description: 'Beginner-friendly art class.',
+        aboutHtml: `<p>Learn basics of composition and color. Materials provided.</p>`,
         image: '/images/events/art.jpg',
-        categoryId: bySlug['workshops'],
+        categoryId: bySlug['workshops'].id,
+        categoryName: bySlug['workshops'].name,
         venueId: venueRefs[2].id,
         priceType: 'payWhatYouWant',
         price: null,
         currency: 'GBP',
+        ticketTypes: [
+          {
+            id: 'don',
+            name: 'Donation Ticket',
+            price: null,
+            currency: 'GBP',
+            available: true,
+          },
+        ],
         capacity: 20,
         ticketsSold: 3,
+        refundPolicy: 'Contact organizer for changes.',
+        organizerName: 'Creative MCR',
+        organizerWebsite: 'https://example.com/creative',
         moderationStatus: 'approved',
         publishStatus: 'published',
         ...inDays(9, 18, 3),
@@ -133,25 +172,39 @@ export default function DevSeed() {
       {
         title: 'JavaScript Meetup',
         description: 'Talks and pizza.',
+        aboutHtml: `<p>Lightning talks + hiring updates. Bring your questions!</p>`,
         image: '/images/events/meetup.jpg',
-        categoryId: bySlug['meetups'],
+        categoryId: bySlug['meetups'].id,
+        categoryName: bySlug['meetups'].name,
         venueId: venueRefs[4].id,
         priceType: 'free',
         price: 0,
         currency: 'GBP',
+        ticketTypes: [
+          {
+            id: 'free',
+            name: 'Free RSVP',
+            price: 0,
+            currency: 'GBP',
+            available: true,
+          },
+        ],
         capacity: 80,
         ticketsSold: 12,
+        refundPolicy: 'Free RSVP — cancel if you can’t attend.',
+        organizerName: 'JS Manchester',
+        organizerWebsite: 'https://example.com/jsmcr',
         moderationStatus: 'approved',
         publishStatus: 'published',
         ...inDays(14, 19, 2),
       },
     ];
 
-    for (const e of samples) {
+    for (const event of samples) {
       await addDoc(collection(db, 'events'), {
-        ...e,
-        slug: slugify(e.title),
-        createdBy: user.uid, // from AuthContext shape
+        ...event,
+        slug: slugify(event.title),
+        createdBy: user.uid,
       });
     }
 

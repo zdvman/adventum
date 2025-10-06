@@ -1,3 +1,4 @@
+// src/utils/slug.js
 export function slugify(s) {
   return (s || '')
     .toLowerCase()

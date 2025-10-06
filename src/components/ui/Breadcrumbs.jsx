@@ -1,3 +1,4 @@
+// @components/ui/Breadcrumbs.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { HomeIcon } from '@heroicons/react/20/solid';
 import { Link, useLocation } from 'react-router-dom';
