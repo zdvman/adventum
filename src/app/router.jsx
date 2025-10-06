@@ -19,6 +19,7 @@ import AccountSettings from '@/pages/AccountSettings';
 import AuthSignUp from '@/pages/AuthSignUp';
 import AuthSignIn from '@/pages/AuthSignIn';
 import AuthResetPassword from '@/pages/AuthResetPassword';
+import DevSeed from '@/pages/DevSeed';
 
 export const router = createBrowserRouter([
   {
@@ -26,7 +27,7 @@ export const router = createBrowserRouter([
     children: [
       { path: '/', element: <Home /> },
       { path: '/events', element: <EventsIndex /> },
-      { path: '/events/:id', element: <EventDetail /> },
+      { path: '/events/:idSlug', element: <EventDetail /> },
       {
         path: '/events/new',
         element: (
@@ -70,6 +71,8 @@ export const router = createBrowserRouter([
       { path: 'checkout/success', element: <CheckoutSuccess /> },
       { path: 'checkout/cancel', element: <CheckoutCancel /> },
       { path: '*', element: <NotFound /> },
+      { path: '/404', element: <NotFound /> },
+      { path: '/dev/seed', element: <DevSeed /> },
     ],
   },
   {

@@ -1,12 +1,3 @@
-import { Avatar } from '@/components/catalyst-ui-kit/avatar';
-import {
-  Dropdown,
-  DropdownButton,
-  DropdownDivider,
-  DropdownItem,
-  DropdownLabel,
-  DropdownMenu,
-} from '@/components/catalyst-ui-kit/dropdown';
 import {
   Navbar,
   NavbarDivider,
@@ -14,14 +5,6 @@ import {
   NavbarSection,
   NavbarSpacer,
 } from '@/components/catalyst-ui-kit/navbar';
-import {
-  ArrowRightStartOnRectangleIcon,
-  ChevronDownIcon,
-  Cog8ToothIcon,
-  LightBulbIcon,
-  ShieldCheckIcon,
-  UserIcon,
-} from '@heroicons/react/16/solid';
 import { ArrowRightEndOnRectangleIcon } from '@heroicons/react/20/solid';
 
 import StaffDropdownMenu from '@/components/ui/StaffDropdownMenu';

@@ -219,10 +219,7 @@
       "start": "2025-10-23T19:00:00+01:00",
       "end": "2025-10-23T21:00:00+01:00",
       "timezone": "Europe/London",
-      "tags": [
-        "comedy",
-        "night"
-      ]
+      "tags": ["comedy", "night"]
     },
     {
       "id": 102,
@@ -243,10 +240,7 @@
       "start": "2025-10-25T17:00:00+01:00",
       "end": "2025-10-25T19:00:00+01:00",
       "timezone": "Europe/London",
-      "tags": [
-        "music",
-        "workshop"
-      ]
+      "tags": ["music", "workshop"]
     },
     {
       "id": 103,
@@ -267,10 +261,7 @@
       "start": "2025-11-01T14:00:00+00:00",
       "end": "2025-11-01T16:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": [
-        "crafts",
-        "community"
-      ]
+      "tags": ["crafts", "community"]
     },
     {
       "id": 104,
@@ -291,10 +282,7 @@
       "start": "2025-11-10T10:00:00+00:00",
       "end": "2025-11-10T15:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": [
-        "family",
-        "science"
-      ]
+      "tags": ["family", "science"]
     },
     {
       "id": 105,
@@ -315,10 +303,7 @@
       "start": "2025-10-30T18:30:00+00:00",
       "end": "2025-10-30T22:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": [
-        "music",
-        "indie"
-      ]
+      "tags": ["music", "indie"]
     },
     {
       "id": 106,
@@ -339,10 +324,7 @@
       "start": "2025-10-28T18:00:00+00:00",
       "end": "2025-10-28T20:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": [
-        "tech",
-        "talk"
-      ]
+      "tags": ["tech", "talk"]
     },
     {
       "id": 107,
@@ -363,10 +345,7 @@
       "start": "2025-11-05T19:00:00+00:00",
       "end": "2025-11-05T21:00:00+00:00",
       "timezone": "Europe/London",
-      "tags": [
-        "comedy",
-        "openmic"
-      ]
+      "tags": ["comedy", "openmic"]
     },
     {
       "id": 108,
@@ -387,10 +366,7 @@
       "start": "2025-09-10T17:00:00+01:00",
       "end": "2025-09-10T19:00:00+01:00",
       "timezone": "Europe/London",
-      "tags": [
-        "art",
-        "workshop"
-      ]
+      "tags": ["art", "workshop"]
     }
   ],
   "bookings": [
