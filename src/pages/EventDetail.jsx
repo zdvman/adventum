@@ -222,7 +222,7 @@ export default function EventDetail() {
 
                   <RRLink
                     to={`/checkout/${event.id}`}
-                    className='mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 font-medium text-zinc-900 hover:opacity-90'
+                    className='mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-indigo-500 px-4 py-3 font-medium text-white hover:opacity-90'
                   >
                     Get tickets
                   </RRLink>

@@ -17,14 +17,21 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+function buildFullName(firstName, lastName) {
+  const parts = [firstName || '', lastName || '']
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.join(' ');
+}
+
 export function AuthContextProvider({ children }) {
   const [user, setUser] = useState(null); // { uid, email }
-  const [profile, setProfile] = useState(null); // { name, role, avatar }
+  const [profile, setProfile] = useState(null); // { firstName, lastName, username, role, avatar, fullName }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Pre-hydrate from our own storage (faster first paint)
+    // Pre-hydrate (faster first paint)
     const stored = loadSession();
     if (stored?.user && stored?.profile) {
       setUser(stored.user);
@@ -43,35 +50,65 @@ export function AuthContextProvider({ children }) {
           return;
         }
 
-        const base = { uid: fbUser.uid, email: fbUser.email ?? null };
+        const baseUser = { uid: fbUser.uid, email: fbUser.email ?? null };
 
-        // Ensure a profile doc exists
+        // Ensure a profile doc exists with the NEW schema
         const ref = doc(db, 'profiles', fbUser.uid);
         let snap = await getDoc(ref);
+
         if (!snap.exists()) {
           await setDoc(ref, {
-            name: '',
+            firstName: '',
+            lastName: '',
+            username: fbUser.email ?? '',
             role: 'member',
             avatar: '/avatars/incognito.png',
+            createdAt: new Date().toISOString(),
           });
           snap = await getDoc(ref);
         }
-        const p = snap.data() ?? {
-          name: '',
-          role: 'member',
-          avatar: '/avatars/incognito.png',
+
+        const raw = snap.data() || {};
+
+        // --- Migration (legacy "name" -> split to first/last ONCE) ---
+        if (!raw.firstName && !raw.lastName && typeof raw.name === 'string') {
+          const [first, ...rest] = raw.name.trim().split(/\s+/);
+          raw.firstName = first || '';
+          raw.lastName = rest.join(' ');
+          await setDoc(
+            ref,
+            { firstName: raw.firstName, lastName: raw.lastName },
+            { merge: true }
+          );
+        }
+        if (!raw.username) {
+          raw.username = fbUser.email ?? '';
+          await setDoc(ref, { username: raw.username }, { merge: true });
+        }
+        // -------------------------------------------------------------
+
+        const normalizedProfile = {
+          firstName: raw.firstName || '',
+          lastName: raw.lastName || '',
+          username: raw.username || (fbUser.email ?? ''),
+          role: raw.role || 'member',
+          avatar: raw.avatar || '/avatars/incognito.png',
+          fullName: buildFullName(raw.firstName, raw.lastName), // derived
         };
 
-        setUser(base);
-        setProfile(p);
+        setUser(baseUser);
+        setProfile(normalizedProfile);
 
-        // Persist to localStorage OR sessionStorage based on previous choice (default to “remember”)
+        // Persist session (respect previous remember choice; default true)
         const prev = loadSession();
         const remember = prev?._source ? prev._source === 'local' : true;
-        saveSession({ user: base, profile: p, ts: Date.now() }, remember);
-      } catch (e) {
-        console.error('Auth state error:', e);
-        setError(e.message || 'Authentication error');
+        saveSession(
+          { user: baseUser, profile: normalizedProfile, ts: Date.now() },
+          remember
+        );
+      } catch (err) {
+        console.error('Auth state error:', err);
+        setError(err.message || 'Authentication error');
       } finally {
         setLoading(false);
       }
@@ -92,7 +129,7 @@ export function AuthContextProvider({ children }) {
         remember ? browserLocalPersistence : browserSessionPersistence
       );
       await signInWithEmailAndPassword(auth, email, password);
-      return true; // onAuthStateChanged will complete state
+      return true; // onAuthStateChanged will set state
     } catch (err) {
       console.error('Sign-in error:', err);
       setError(err.message || 'Failed to sign in');
@@ -102,10 +139,12 @@ export function AuthContextProvider({ children }) {
     }
   }
 
-  // Email/password sign-up + create profile doc
+  // Email/password sign-up + create profile doc (NEW SHAPE)
   async function signUp(
     {
-      name,
+      firstName,
+      lastName,
+      username, // optional; defaults to email
       email,
       password,
       role = 'member',
@@ -116,15 +155,29 @@ export function AuthContextProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      if (!name || !email || !password)
-        throw new Error('All fields are required.');
+      if (!firstName || !lastName || !email || !password) {
+        throw new Error(
+          'First name, last name, email, and password are required.'
+        );
+      }
+
       await setPersistence(
         auth,
         remember ? browserLocalPersistence : browserSessionPersistence
       );
+
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const ref = doc(db, 'profiles', cred.user.uid);
-      await setDoc(ref, { name, role, avatar });
+
+      await setDoc(ref, {
+        firstName,
+        lastName,
+        username: username || email,
+        role,
+        avatar,
+        createdAt: new Date().toISOString(),
+      });
+
       return { uid: cred.user.uid, email: cred.user.email };
     } catch (err) {
       console.error('Sign-up error:', err);
@@ -135,7 +188,7 @@ export function AuthContextProvider({ children }) {
     }
   }
 
-  // Google sign-in (POPUP ONLY, no redirect)
+  // Google sign-in (POPUP ONLY)
   async function signInWithGoogle({ remember = false } = {}) {
     const provider = new GoogleAuthProvider();
     setLoading(true);
@@ -146,9 +199,8 @@ export function AuthContextProvider({ children }) {
         remember ? browserLocalPersistence : browserSessionPersistence
       );
       const result = await signInWithPopup(auth, provider);
-      return result.user; // onAuthStateChanged will also run
+      return result.user; // onAuthStateChanged will run
     } catch (err) {
-      // If user closes the popup, nothing else happens (no redirect).
       console.error('Google sign-in error:', err);
       setError(err.message || 'Failed to sign in with Google');
       throw err;
