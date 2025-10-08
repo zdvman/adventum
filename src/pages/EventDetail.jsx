@@ -1,5 +1,6 @@
+// src/pages/EventDetail.jsx
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, Link as RRLink } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { composeIdSlug, splitIdSlug } from '@/utils/slug';
@@ -198,6 +199,7 @@ export default function EventDetail() {
                     <Button
                       outline
                       className='!rounded-full !px-3 !py-1 text-xs'
+                      type='button'
                       onClick={() => {
                         if (navigator.share) {
                           navigator
@@ -220,12 +222,14 @@ export default function EventDetail() {
                     {priceLabel}
                   </div>
 
-                  <RRLink
-                    to={`/checkout/${event.id}`}
-                    className='mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-indigo-500 px-4 py-3 font-medium text-white hover:opacity-90'
+                  {/* ==> Catalyst Button with href for client-side nav */}
+                  <Button
+                    color='indigo'
+                    href={`/checkout/${event.id}`}
+                    className='mt-4 w-full !rounded-2xl !py-3'
                   >
                     Get tickets
-                  </RRLink>
+                  </Button>
 
                   {/* On Sale / Closed + capacity */}
                   <div className='mt-4 text-xs text-zinc-400 flex items-center gap-2'>
@@ -258,7 +262,6 @@ export default function EventDetail() {
                                 }
                               >
                                 <div className='flex items-center gap-2 flex-1'>
-                                  {/* optional: badge by id */}
                                   {ticket.id === 'early' && (
                                     <Badge color='lime' size='sm'>
                                       Early Bird
@@ -274,7 +277,6 @@ export default function EventDetail() {
                                       VIP
                                     </Badge>
                                   )}
-                                  {/* Center "Sold out" between badge and price */}
                                   {!isAvailable && (
                                     <span className='mx-auto text-zinc-100 font-medium pointer-events-none'>
                                       Sold out
@@ -363,15 +365,16 @@ export default function EventDetail() {
                 <div className='font-semibold'>
                   {event.organizerName ?? 'Organizer'}
                 </div>
+
                 {event.organizerWebsite && (
-                  <a
+                  <Link
                     href={event.organizerWebsite}
                     target='_blank'
                     rel='noreferrer'
-                    className='text-sm text-zinc-300 hover:underline'
+                    className='text-sm text-zinc-300'
                   >
                     {event.organizerWebsite}
-                  </a>
+                  </Link>
                 )}
               </div>
             </div>
