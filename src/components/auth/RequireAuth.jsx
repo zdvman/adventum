@@ -4,10 +4,13 @@ import { useAuth } from '@/contexts/useAuth';
 import Loading from '@/components/ui/Loading';
 
 export default function RequireAuth({ children }) {
-  const { user, loading } = useAuth();
+  const { user, initializing } = useAuth(); // ⬅️ use initializing
   const { pathname } = useLocation();
-  if (loading) return <Loading />; // or spinner
-  if (!user)
+
+  if (initializing) return <Loading />; // only while Firebase boots
+
+  if (!user) {
     return <Navigate to='/auth/sign-in' replace state={{ from: pathname }} />;
+  }
   return children;
 }

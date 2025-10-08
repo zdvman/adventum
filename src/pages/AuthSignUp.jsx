@@ -1,3 +1,6 @@
+// src/pages/AuthSignUp.jsx
+import { useState, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { Button } from '@/components/catalyst-ui-kit/button';
 import { Checkbox, CheckboxField } from '@/components/catalyst-ui-kit/checkbox';
 import { Field, Label } from '@/components/catalyst-ui-kit/fieldset';
@@ -7,39 +10,99 @@ import { Strong, Text, TextLink } from '@/components/catalyst-ui-kit/text';
 import AlertPopup from '@/components/ui/AlertPopup';
 import Logo from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/useAuth';
-import { useLocation, useNavigate } from 'react-router';
-import { useState } from 'react';
+import {
+  CheckCircleIcon,
+  ExclamationCircleIcon,
+  EyeIcon,
+  EyeSlashIcon,
+} from '@heroicons/react/24/outline';
 
-function AuthSignUp() {
-  const { signUp, loading } = useAuth();
+// Read pattern-only from env (no slashes, no quotes)
+function getPasswordRegexFromEnv() {
+  const raw =
+    (typeof import.meta !== 'undefined' &&
+      import.meta.env?.VITE_PASSWORD_REGEX) ||
+    '';
+  const fallback = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+  if (!raw) return fallback;
+  try {
+    return new RegExp(raw);
+  } catch {
+    return fallback;
+  }
+}
+const PASSWORD_REGEX = getPasswordRegexFromEnv();
+
+export default function AuthSignUp() {
+  const { signUp } = useAuth(); // do not use context.loading here
   const navigate = useNavigate();
   const location = useLocation();
 
+  // alert
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertTitle, setAlertTitle] = useState('');
 
-  // navigate back to where the guard redirected from (or home)
+  // form state
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [touchedPw, setTouchedPw] = useState(false);
+  const [touchedConfirm, setTouchedConfirm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const checks = useMemo(
+    () => ({
+      hasLower: /[a-z]/.test(password),
+      hasUpper: /[A-Z]/.test(password),
+      hasNumber: /\d/.test(password),
+      hasSpecial: /[^A-Za-z0-9]/.test(password),
+      hasMinLen: password.length >= 8,
+    }),
+    [password]
+  );
+
+  const isPasswordValid = PASSWORD_REGEX.test(password);
+  const doesConfirmMatch = confirm.length > 0 && confirm === password;
+
+  // enable only when local fields are clearly valid (submitting handled separately)
+  const canSubmit = isPasswordValid && doesConfirmMatch;
+
   const from = location.state?.from || '/';
 
   async function handleSubmit(e) {
     e.preventDefault();
     const formEl = e.currentTarget;
+
     if (!formEl.checkValidity()) {
-      // native bubble UI (email format, required, minlength, etc.)
       formEl.reportValidity();
+      return;
+    }
+    if (!isPasswordValid) {
+      setTouchedPw(true);
+      setAlertTitle('Weak password');
+      setAlertMessage('Please meet all password requirements.');
+      setIsAlertOpen(true);
+      return;
+    }
+    if (!doesConfirmMatch) {
+      setTouchedConfirm(true);
+      setAlertTitle('Passwords do not match');
+      setAlertMessage('Make sure both password fields are identical.');
+      setIsAlertOpen(true);
       return;
     }
 
     const form = new FormData(formEl);
-    const name = form.get('name')?.toString().trim();
+    const firstName = form.get('first-name')?.toString().trim();
+    const lastName = form.get('last-name')?.toString().trim();
+    const usernameRaw = form.get('username')?.toString().trim();
     const email = form.get('email')?.toString().trim().toLowerCase();
-    const password = form.get('password')?.toString();
     const avatar = form.get('avatar')?.toString().trim() || '';
     const remember = !!form.get('remember');
 
-    // extra safety guard
-    if (!name || !email || !password) {
+    if (!firstName || !lastName || !email || !password) {
       setAlertTitle('Missing fields');
       setAlertMessage('Please enter your name, email, and password.');
       setIsAlertOpen(true);
@@ -47,15 +110,38 @@ function AuthSignUp() {
     }
 
     try {
-      // role intentionally omitted -> defaults to "member" in the context
-      await signUp({ name, email, password, avatar }, { remember });
+      setSubmitting(true);
+      await signUp(
+        {
+          firstName,
+          lastName,
+          username: usernameRaw || email,
+          email,
+          password,
+          avatar,
+        },
+        { remember }
+      );
       navigate(from, { replace: true });
     } catch (err) {
       setAlertTitle('Sign up failed');
       setAlertMessage(err?.message || 'Could not create your account.');
       setIsAlertOpen(true);
+    } finally {
+      setSubmitting(false);
     }
   }
+
+  const Requirement = ({ ok, children }) => (
+    <div className='flex items-center gap-2 text-xs'>
+      {ok ? (
+        <CheckCircleIcon className='size-4 text-lime-400' />
+      ) : (
+        <ExclamationCircleIcon className='size-4 text-zinc-500' />
+      )}
+      <span className={ok ? 'text-zinc-300' : 'text-zinc-400'}>{children}</span>
+    </div>
+  );
 
   return (
     <>
@@ -68,24 +154,109 @@ function AuthSignUp() {
         <Heading>Create your account</Heading>
 
         <Field>
-          <Label>Full name</Label>
-          <Input name='name' required />
+          <Label>First Name</Label>
+          <Input name='first-name' required />
+        </Field>
+
+        <Field>
+          <Label>Last Name</Label>
+          <Input name='last-name' required />
+        </Field>
+
+        <Field>
+          <Label>Username (optional)</Label>
+          <Input
+            name='username'
+            placeholder='your-nickname'
+            aria-describedby='username-help'
+          />
+          <div id='username-help' className='mt-1 text-xs text-zinc-500'>
+            If left blank, we’ll use your email as username.
+          </div>
         </Field>
 
         <Field>
           <Label>Email</Label>
-          <Input type='email' name='email' required />
+          <Input type='email' name='email' required autoComplete='email' />
         </Field>
 
         <Field>
           <Label>Password</Label>
-          <Input
-            type='password'
-            name='password'
-            autoComplete='new-password'
-            required
-            minLength={4}
-          />
+          <div className='relative'>
+            <Input
+              type={showPassword ? 'text' : 'password'}
+              name='password'
+              autoComplete='new-password'
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => setTouchedPw(true)}
+              aria-invalid={touchedPw && !isPasswordValid}
+            />
+            <button
+              type='button'
+              className='absolute inset-y-0 right-2 grid place-items-center px-2 text-zinc-400 hover:text-zinc-200'
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? (
+                <EyeSlashIcon className='size-5' />
+              ) : (
+                <EyeIcon className='size-5' />
+              )}
+            </button>
+          </div>
+
+          <div className='mt-2 space-y-1'>
+            <Requirement ok={checks.hasMinLen}>
+              At least 8 characters
+            </Requirement>
+            <Requirement ok={checks.hasUpper}>
+              Contains an uppercase letter
+            </Requirement>
+            <Requirement ok={checks.hasLower}>
+              Contains a lowercase letter
+            </Requirement>
+            <Requirement ok={checks.hasNumber}>Contains a number</Requirement>
+            <Requirement ok={checks.hasSpecial}>
+              Contains a special character
+            </Requirement>
+          </div>
+        </Field>
+
+        <Field>
+          <Label>Confirm Password</Label>
+          <div className='relative'>
+            <Input
+              type={showConfirm ? 'text' : 'password'}
+              name='confirm-password'
+              autoComplete='new-password'
+              required
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              onBlur={() => setTouchedConfirm(true)}
+              aria-invalid={touchedConfirm && !doesConfirmMatch}
+            />
+            <button
+              type='button'
+              className='absolute inset-y-0 right-2 grid place-items-center px-2 text-zinc-400 hover:text-zinc-200'
+              onClick={() => setShowConfirm((v) => !v)}
+              aria-label={
+                showConfirm ? 'Hide confirm password' : 'Show confirm password'
+              }
+            >
+              {showConfirm ? (
+                <EyeSlashIcon className='size-5' />
+              ) : (
+                <EyeIcon className='size-5' />
+              )}
+            </button>
+          </div>
+          {touchedConfirm && !doesConfirmMatch && (
+            <div className='mt-1 text-xs text-red-400'>
+              Passwords do not match.
+            </div>
+          )}
         </Field>
 
         <Field>
@@ -102,8 +273,12 @@ function AuthSignUp() {
           <Label>Keep me signed in on this device</Label>
         </CheckboxField>
 
-        <Button type='submit' className='w-full' disabled={loading}>
-          {loading ? 'Creating account…' : 'Create account'}
+        <Button
+          type='submit'
+          className='w-full'
+          disabled={submitting || !canSubmit}
+        >
+          {submitting ? 'Creating account…' : 'Create account'}
         </Button>
 
         <Text>
@@ -124,5 +299,3 @@ function AuthSignUp() {
     </>
   );
 }
-
-export default AuthSignUp;

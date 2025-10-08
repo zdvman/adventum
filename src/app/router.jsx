@@ -57,7 +57,7 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: 'settings',
+            path: '/account/settings',
             element: (
               <RequireAuth>
                 <AccountSettings />
