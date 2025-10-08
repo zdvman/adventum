@@ -34,7 +34,7 @@ function getPasswordRegexFromEnv() {
 const PASSWORD_REGEX = getPasswordRegexFromEnv();
 
 export default function AuthSignUp() {
-  const { signUp } = useAuth(); // do not use context.loading here
+  const { signUp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -275,6 +275,7 @@ export default function AuthSignUp() {
 
         <Button
           type='submit'
+          color='indigo'
           className='w-full'
           disabled={submitting || !canSubmit}
         >

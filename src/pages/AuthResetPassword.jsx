@@ -75,7 +75,12 @@ export default function AuthResetPassword() {
           <Input type='email' name='email' required />
         </Field>
 
-        <Button type='submit' className='w-full' disabled={loading}>
+        <Button
+          type='submit'
+          color='indigo'
+          className='w-full'
+          disabled={loading}
+        >
           {loading ? 'Sending…' : 'Reset password'}
         </Button>
 

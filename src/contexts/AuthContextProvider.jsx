@@ -1,3 +1,4 @@
+// src/contexts/AuthContextProvider.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { AuthContext } from '@/contexts/AuthContext';
 import { clearSession, loadSession, saveSession } from '@/utils/storage';
@@ -26,8 +27,9 @@ function buildFullName(firstName, lastName) {
 
 export function AuthContextProvider({ children }) {
   const [user, setUser] = useState(null); // { uid, email }
-  const [profile, setProfile] = useState(null); // { firstName, lastName, username, role, avatar, fullName }
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null); // { firstName, lastName, username, role, avatar, fullName, about?, address? }
+  const [initializing, setInitializing] = useState(true); // <— NEW (boot only)
+  const [loading, setLoading] = useState(false); // <— for actions
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export function AuthContextProvider({ children }) {
     if (stored?.user && stored?.profile) {
       setUser(stored.user);
       setProfile(stored.profile);
-      setLoading(false);
+      // Keep `initializing` true; Firebase is still the source of truth.
     }
 
     // Source of truth: Firebase Auth state
@@ -46,7 +48,6 @@ export function AuthContextProvider({ children }) {
           clearSession();
           setUser(null);
           setProfile(null);
-          setLoading(false);
           return;
         }
 
@@ -63,6 +64,8 @@ export function AuthContextProvider({ children }) {
             username: fbUser.email ?? '',
             role: 'member',
             avatar: '/avatars/incognito.png',
+            about: '',
+            address: null, // <- optional
             createdAt: new Date().toISOString(),
           });
           snap = await getDoc(ref);
@@ -70,22 +73,11 @@ export function AuthContextProvider({ children }) {
 
         const raw = snap.data() || {};
 
-        // --- Migration (legacy "name" -> split to first/last ONCE) ---
-        if (!raw.firstName && !raw.lastName && typeof raw.name === 'string') {
-          const [first, ...rest] = raw.name.trim().split(/\s+/);
-          raw.firstName = first || '';
-          raw.lastName = rest.join(' ');
-          await setDoc(
-            ref,
-            { firstName: raw.firstName, lastName: raw.lastName },
-            { merge: true }
-          );
-        }
         if (!raw.username) {
           raw.username = fbUser.email ?? '';
           await setDoc(ref, { username: raw.username }, { merge: true });
         }
-        // -------------------------------------------------------------
+        // -----------------------------------------------------
 
         const normalizedProfile = {
           firstName: raw.firstName || '',
@@ -93,7 +85,9 @@ export function AuthContextProvider({ children }) {
           username: raw.username || (fbUser.email ?? ''),
           role: raw.role || 'member',
           avatar: raw.avatar || '/avatars/incognito.png',
-          fullName: buildFullName(raw.firstName, raw.lastName), // derived
+          about: raw.about || '',
+          address: raw.address || null, // may be null
+          fullName: buildFullName(raw.firstName, raw.lastName),
         };
 
         setUser(baseUser);
@@ -110,13 +104,14 @@ export function AuthContextProvider({ children }) {
         console.error('Auth state error:', err);
         setError(err.message || 'Authentication error');
       } finally {
-        setLoading(false);
+        setInitializing(false); // <— FINISH BOOT PHASE HERE
       }
     });
 
     return () => unsub();
   }, []);
 
+  // Actions (use loading)
   // Email/password sign-in
   async function signIn(email, password, { remember = false } = {}) {
     setLoading(true);
@@ -139,7 +134,7 @@ export function AuthContextProvider({ children }) {
     }
   }
 
-  // Email/password sign-up + create profile doc (NEW SHAPE)
+  // Email/password sign-up + create profile doc
   async function signUp(
     {
       firstName,
@@ -175,6 +170,8 @@ export function AuthContextProvider({ children }) {
         username: username || email,
         role,
         avatar,
+        about: '',
+        address: null,
         createdAt: new Date().toISOString(),
       });
 
@@ -199,7 +196,7 @@ export function AuthContextProvider({ children }) {
         remember ? browserLocalPersistence : browserSessionPersistence
       );
       const result = await signInWithPopup(auth, provider);
-      return result.user; // onAuthStateChanged will run
+      return result.user;
     } catch (err) {
       console.error('Google sign-in error:', err);
       setError(err.message || 'Failed to sign in with Google');
@@ -234,20 +231,54 @@ export function AuthContextProvider({ children }) {
     }
   }
 
+  // Update profile document (partial fields)
+  async function updateProfile(partial) {
+    if (!user?.uid) throw new Error('Not signed in');
+    setLoading(true);
+    setError(null);
+    try {
+      const ref = doc(db, 'profiles', user.uid);
+      await setDoc(ref, partial, { merge: true });
+
+      const next = {
+        ...(profile || {}),
+        ...partial,
+      };
+
+      // keep derived fullName in sync
+      next.fullName = buildFullName(next.firstName, next.lastName);
+
+      setProfile(next);
+
+      const prev = loadSession();
+      const remember = prev?._source ? prev._source === 'local' : true;
+      saveSession({ user, profile: next, ts: Date.now() }, remember);
+      return next;
+    } catch (err) {
+      console.error('Update profile error:', err);
+      setError(err.message || 'Failed to update profile');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const value = useMemo(
     () => ({
       user,
       profile,
+      initializing,
       loading,
       signIn,
       signUp,
       signOut,
       resetPassword,
       signInWithGoogle,
+      updateProfile,
       error,
       setError,
     }),
-    [user, profile, loading, error]
+    [user, profile, initializing, loading, error]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

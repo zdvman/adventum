@@ -110,7 +110,12 @@ function AuthSignIn() {
           </Text>
         </div>
 
-        <Button type='submit' className='w-full' disabled={loading}>
+        <Button
+          type='submit'
+          className='w-full'
+          disabled={loading}
+          color='indigo'
+        >
           {loading ? 'Signing in…' : 'Login'}
         </Button>
 
