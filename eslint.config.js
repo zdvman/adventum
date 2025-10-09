@@ -6,6 +6,9 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import importPlugin from 'eslint-plugin-import';
 import { defineConfig, globalIgnores } from 'eslint/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig([
   // 1. Ignore the "dist" folder (build outputs)
@@ -33,7 +36,10 @@ export default defineConfig([
       // import/resolver settings for modules and alias
       'import/resolver': {
         node: { extensions: ['.js', '.jsx'] },
-        alias: { map: [['@', './src']], extensions: ['.js', '.jsx'] },
+        alias: {
+          map: [['@', path.join(__dirname, 'src')]], // ← absolute path
+          extensions: ['.js', '.jsx'],
+        },
       },
     },
     rules: {
