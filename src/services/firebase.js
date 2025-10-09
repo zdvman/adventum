@@ -28,3 +28,8 @@ export let analytics;
 if (typeof window !== 'undefined' && typeof getAnalytics === 'function') {
   analytics = getAnalytics(app);
 }
+
+export const ACTION_CODE_SETTINGS = {
+  url: `${window.location.origin}/auth/action`,
+  handleCodeInApp: true,
+};

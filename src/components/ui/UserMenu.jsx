@@ -38,10 +38,10 @@ function UserMenu() {
         <ChevronDownIcon className='hidden lg:inline' />
       </DropdownButton>
       <DropdownMenu className='min-w-64' anchor='bottom end'>
-        {/* <DropdownItem href='/my-profile'>
+        <DropdownItem href='/account/events'>
           <UserIcon />
-          <DropdownLabel>My profile</DropdownLabel>
-        </DropdownItem> */}
+          <DropdownLabel>My events</DropdownLabel>
+        </DropdownItem>
         <DropdownItem href='/account/settings'>
           <Cog8ToothIcon />
           <DropdownLabel>Settings</DropdownLabel>

@@ -7,10 +7,10 @@ import EventsIndex from '@/pages/EventsIndex';
 import EventDetail from '@/pages/EventDetail';
 import CreateEvent from '@/pages/CreateEvent';
 import MyBookings from '@/pages/MyBookings';
+import MyEvents from '@/pages/MyEvents'; // ⬅️ new
 import NotFound from '@/pages/NotFound';
 
 import RequireAuth from '@/components/auth/RequireAuth';
-import RequireStaff from '@/components/auth/RequireStaff';
 import AppLayout from '@/components/layout/AppLayout';
 import CheckoutStart from '@/pages/CheckoutStart';
 import CheckoutSuccess from '@/pages/CheckoutSuccess';
@@ -26,8 +26,12 @@ export const router = createBrowserRouter([
     element: <AppLayout />,
     children: [
       { path: '/', element: <Home /> },
+
+      // Public events catalogue
       { path: '/events', element: <EventsIndex /> },
       { path: '/events/:idSlug', element: <EventDetail /> },
+
+      // Create (signed-in)
       {
         path: '/events/new',
         element: (
@@ -36,6 +40,11 @@ export const router = createBrowserRouter([
           </RequireAuth>
         ),
       },
+
+      // (Optional) Edit page − protect inside the page by checking ownership/staff
+      // { path: '/events/:id/edit', element: <RequireAuth><EditEvent /></RequireAuth> },
+
+      // “My” section aliases
       {
         path: '/my',
         element: (
@@ -44,10 +53,20 @@ export const router = createBrowserRouter([
           </RequireAuth>
         ),
       },
+
+      // Account hub (nested)
       {
         path: 'account',
         children: [
-          { index: true, loader: () => redirect('/account/tickets') },
+          { index: true, loader: () => redirect('/account/events') },
+          {
+            path: 'events',
+            element: (
+              <RequireAuth>
+                <MyEvents />
+              </RequireAuth>
+            ),
+          },
           {
             path: 'tickets',
             element: (
@@ -57,7 +76,7 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: '/account/settings',
+            path: 'settings',
             element: (
               <RequireAuth>
                 <AccountSettings />
@@ -67,16 +86,19 @@ export const router = createBrowserRouter([
         ],
       },
 
+      // Checkout
       { path: 'checkout/:eventId', element: <CheckoutStart /> },
       { path: 'checkout/success', element: <CheckoutSuccess /> },
       { path: 'checkout/cancel', element: <CheckoutCancel /> },
-      { path: '*', element: <NotFound /> },
-      { path: '/404', element: <NotFound /> },
+
+      // Misc
       { path: '/dev/seed', element: <DevSeed /> },
+      { path: '/404', element: <NotFound /> },
+      { path: '*', element: <NotFound /> },
     ],
   },
   {
-    element: <AuthLayout />, // no header/footer
+    element: <AuthLayout />,
     children: [
       { path: '/auth/sign-in', element: <AuthSignIn /> },
       { path: '/auth/sign-up', element: <AuthSignUp /> },

@@ -5,17 +5,33 @@ import { useAuth } from '@/contexts/useAuth';
 
 import { Avatar } from '@/components/catalyst-ui-kit/avatar';
 import { Button } from '@/components/catalyst-ui-kit/button';
-import { Field, Label } from '@/components/catalyst-ui-kit/fieldset';
+import {
+  Description,
+  Field,
+  Label,
+} from '@/components/catalyst-ui-kit/fieldset';
 import { Input } from '@/components/catalyst-ui-kit/input';
-import { Textarea } from '@/components/catalyst-ui-kit/textarea'; // if you have this; else use <textarea>
+import { Textarea } from '@/components/catalyst-ui-kit/textarea';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import AlertPopup from '@/components/ui/AlertPopup';
 
+import { auth } from '@/services/firebase';
+
 export default function AccountSettings() {
   const navigate = useNavigate();
-  const { user, profile, updateProfile, loading, initializing } = useAuth();
+  const {
+    user,
+    profile,
+    updateProfile,
+    updateAuthEmail,
+    changePassword,
+    deleteAccount,
+    // reauthWithGoogle,
+    loading,
+    initializing,
+  } = useAuth();
 
-  // local form state
+  // profile section state
   const [firstName, setFirstName] = useState(profile?.firstName || '');
   const [lastName, setLastName] = useState(profile?.lastName || '');
   const [username, setUsername] = useState(
@@ -25,13 +41,24 @@ export default function AccountSettings() {
   const [avatar, setAvatar] = useState(
     profile?.avatar || '/avatars/incognito.png'
   );
-  const [address, setAddress] = useState(profile?.address || null); // may be null
+  const [address, setAddress] = useState(profile?.address || null);
 
+  // email/password sections state
+  const [newEmail, setNewEmail] = useState(user?.email || '');
+  const [currentPwForEmail, setCurrentPwForEmail] = useState(''); // only for email/password users
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmNewPw, setConfirmNewPw] = useState('');
+
+  // danger zone
+  const [currentPwForDelete, setCurrentPwForDelete] = useState('');
+
+  // alerts
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
 
-  // if profile comes in after mount (first render), sync once
+  // sync on profile load
   useEffect(() => {
     setFirstName(profile?.firstName || '');
     setLastName(profile?.lastName || '');
@@ -39,11 +66,12 @@ export default function AccountSettings() {
     setAbout(profile?.about || '');
     setAvatar(profile?.avatar || '/avatars/incognito.png');
     setAddress(profile?.address || null);
+    setNewEmail(user?.email || '');
   }, [profile, user?.email]);
 
-  async function handleSubmit(e) {
+  // --- Save profile (FireStore doc only) ---
+  async function handleSaveProfile(e) {
     e.preventDefault();
-
     try {
       await updateProfile({
         firstName: firstName.trim(),
@@ -51,23 +79,21 @@ export default function AccountSettings() {
         username: (username || '').trim() || user?.email || '',
         avatar: (avatar || '').trim() || '/avatars/incognito.png',
         about,
-        // Save address exactly (null or object)
-        address:
-          (address && { // sanitize minimal fields
-            line1: address.line1 || '',
-            line2: address.line2 || '',
-            city: address.city || '',
-            region: address.region || '',
-            postalCode: address.postalCode || '',
-            countryCode: address.countryCode || '',
-            countryName: address.countryName || '',
-            lat: typeof address.lat === 'number' ? address.lat : null,
-            lng: typeof address.lng === 'number' ? address.lng : null,
-            placeId: address.placeId || '',
-          }) ||
-          null,
+        address: address
+          ? {
+              line1: address.line1 || '',
+              line2: address.line2 || '',
+              city: address.city || '',
+              region: address.region || '',
+              postalCode: address.postalCode || '',
+              countryCode: address.countryCode || '',
+              countryName: address.countryName || '',
+              lat: typeof address.lat === 'number' ? address.lat : null,
+              lng: typeof address.lng === 'number' ? address.lng : null,
+              placeId: address.placeId || '',
+            }
+          : null,
       });
-
       setAlertTitle('Profile updated');
       setAlertMessage('Your settings have been saved.');
       setIsAlertOpen(true);
@@ -78,15 +104,89 @@ export default function AccountSettings() {
     }
   }
 
-  if (initializing) {
-    // Optional: show your global loading page/spinner
-    return null;
+  // --- Update email (Firebase Auth) ---
+  async function handleUpdateEmail(e) {
+    e.preventDefault();
+    try {
+      const usingGoogle = !authHasPasswordProvider();
+      await updateAuthEmail({
+        newEmail: newEmail.trim(),
+        currentPassword: usingGoogle ? undefined : currentPwForEmail,
+        viaGoogle: usingGoogle,
+      });
+
+      setCurrentPwForEmail('');
+      setAlertTitle('Verify your new email');
+      setAlertMessage(
+        'We sent a verification link to your new address. Click it to finish changing your login email.'
+      );
+      setIsAlertOpen(true);
+    } catch (err) {
+      setAlertTitle('Email update failed');
+      setAlertMessage(
+        err?.message || 'Please re-check your password and try again.'
+      );
+      setIsAlertOpen(true);
+    }
   }
+
+  // --- Change password (Firebase Auth) ---
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    if (newPw !== confirmNewPw) {
+      setAlertTitle('Passwords do not match');
+      setAlertMessage('Please make sure the new passwords match.');
+      setIsAlertOpen(true);
+      return;
+    }
+    try {
+      await changePassword({ currentPassword: currentPw, newPassword: newPw });
+      setCurrentPw('');
+      setNewPw('');
+      setConfirmNewPw('');
+      setAlertTitle('Password changed');
+      setAlertMessage('Your password has been updated.');
+      setIsAlertOpen(true);
+    } catch (err) {
+      setAlertTitle('Password change failed');
+      setAlertMessage(
+        err?.message || 'Please re-check your current password and try again.'
+      );
+      setIsAlertOpen(true);
+    }
+  }
+
+  // --- Delete account (Firestore doc + Auth user) ---
+  async function handleDeleteAccount(e) {
+    e.preventDefault();
+    const ok = confirm(
+      'This will permanently delete your account and profile. This cannot be undone. Continue?'
+    );
+    if (!ok) return;
+
+    try {
+      const usingGoogle = !authHasPasswordProvider(user);
+      await deleteAccount({
+        currentPassword: usingGoogle ? undefined : currentPwForDelete,
+        viaGoogle: usingGoogle,
+      });
+      // navigate user away (auth state will be cleared)
+      navigate('/');
+    } catch (err) {
+      setAlertTitle('Delete failed');
+      setAlertMessage(err?.message || 'Unable to delete your account.');
+      setIsAlertOpen(true);
+    }
+  }
+
+  if (initializing) return null;
+
+  const usingGoogle = !authHasPasswordProvider(user);
 
   return (
     <>
-      <form onSubmit={handleSubmit} className='space-y-12'>
-        {/* Profile */}
+      {/* PROFILE */}
+      <form onSubmit={handleSaveProfile} className='space-y-12'>
         <section className='border-b border-white/10 pb-10'>
           <h2 className='text-base/7 font-semibold text-white'>Profile</h2>
           <p className='mt-1 text-sm/6 text-gray-400'>
@@ -94,87 +194,68 @@ export default function AccountSettings() {
           </p>
 
           <div className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-6'>
-            <div className='sm:col-span-3'>
+            <div className='sm:col-span-2'>
               <Field>
                 <Label>First name</Label>
                 <Input
-                  name='first-name'
-                  required
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  autoComplete='given-name'
+                  required
                 />
               </Field>
             </div>
-
-            <div className='sm:col-span-3'>
+            <div className='sm:col-span-2'>
               <Field>
                 <Label>Last name</Label>
                 <Input
-                  name='last-name'
-                  required
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  autoComplete='family-name'
+                  required
                 />
               </Field>
             </div>
-
-            <div className='sm:col-span-4'>
+            <div className='sm:col-span-2'>
               <Field>
                 <Label>Username</Label>
-                <div className='flex items-center rounded-md bg-white/5 pl-3 outline-1 -outline-offset-1 outline-white/10 focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-indigo-500'>
-                  <div className='shrink-0 text-base text-gray-400 select-none sm:text-sm/6'>
-                    adventum.com/
-                  </div>
-                  <input
-                    id='username'
-                    name='username'
-                    type='text'
-                    className='block min-w-0 grow bg-transparent py-1.5 pr-3 pl-1 text-base text-white placeholder:text-gray-500 focus:outline-none sm:text-sm/6'
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                </div>
+                <Input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
               </Field>
             </div>
 
             <div className='col-span-full'>
               <Field>
                 <Label>About</Label>
-                {/* If you don’t have <Textarea/> in the kit, use <textarea/> styled like your inputs */}
+                <Description>
+                  A short bio to introduce yourself to others.
+                </Description>
                 <Textarea
                   rows={3}
-                  name='about'
                   value={about}
                   onChange={(e) => setAbout(e.target.value)}
                 />
               </Field>
             </div>
 
-            <div className='col-span-full'>
+            <div className='sm:col-span-2'>
+              <Avatar src={avatar} className='size-80' />
+            </div>
+            <div className='sm:col-span-4'>
               <Field>
                 <Label>Avatar URL</Label>
-                <div className='flex items-center gap-3'>
-                  {avatar ? (
-                    <Avatar src={avatar} className='size-12' />
-                  ) : (
-                    <div className='size-12 rounded-full bg-white/10' />
-                  )}
-                  <Input
-                    name='avatar'
-                    type='url'
-                    placeholder='https://example.com/me.png'
-                    value={avatar}
-                    onChange={(e) => setAvatar(e.target.value)}
-                  />
-                </div>
+                <Description>URL of your profile picture.</Description>
+                <Input
+                  type='url'
+                  value={avatar}
+                  onChange={(e) => setAvatar(e.target.value)}
+                />
               </Field>
             </div>
           </div>
         </section>
 
-        {/* Personal Information – Address (optional) */}
+        {/* ADDRESS (optional) */}
         <section className='border-b border-white/10 pb-10'>
           <h2 className='text-base/7 font-semibold text-white'>
             Personal information
@@ -183,14 +264,12 @@ export default function AccountSettings() {
             Add an address if you want to use it for tickets, invoices, or venue
             creation. You can leave it empty.
           </p>
-
           <div className='mt-8 grid grid-cols-1 gap-6'>
             <AddressAutocomplete value={address} onChange={setAddress} />
           </div>
         </section>
 
-        {/* Actions */}
-        <div className='mt-6 flex items-center justify-end gap-x-6'>
+        <div className='mt-2 flex items-center justify-end gap-x-6'>
           <Button plain type='button' onClick={() => navigate(-1)}>
             Cancel
           </Button>
@@ -198,6 +277,129 @@ export default function AccountSettings() {
             {loading ? 'Saving…' : 'Save'}
           </Button>
         </div>
+      </form>
+
+      {/* ACCOUNT: EMAIL */}
+      <form
+        onSubmit={handleUpdateEmail}
+        className='mt-12 space-y-6 border-t border-white/10 pt-10'
+      >
+        <h3 className='text-base/7 font-semibold text-white'>Login email</h3>
+        <div className='max-w-lg space-y-4'>
+          <Field>
+            <Label>New email</Label>
+            <Input
+              type='email'
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              required
+            />
+          </Field>
+
+          {!usingGoogle && (
+            <Field>
+              <Label>Current password</Label>
+              <Input
+                type='password'
+                value={currentPwForEmail}
+                onChange={(e) => setCurrentPwForEmail(e.target.value)}
+                placeholder='Required to confirm email change'
+                required
+              />
+            </Field>
+          )}
+
+          {usingGoogle && (
+            <p className='text-sm text-zinc-400'>
+              You signed in with Google. We’ll ask you to reauthenticate with a
+              Google popup.
+            </p>
+          )}
+
+          <Button color='indigo' type='submit' disabled={loading}>
+            {loading ? 'Updating…' : 'Update email'}
+          </Button>
+        </div>
+      </form>
+
+      {/* ACCOUNT: PASSWORD */}
+      {!usingGoogle && (
+        <form
+          onSubmit={handleChangePassword}
+          className='mt-12 space-y-6 border-t border-white/10 pt-10'
+        >
+          <h3 className='text-base/7 font-semibold text-white'>
+            Change password
+          </h3>
+          <div className='max-w-lg space-y-4'>
+            <Field>
+              <Label>Current password</Label>
+              <Input
+                type='password'
+                value={currentPw}
+                onChange={(e) => setCurrentPw(e.target.value)}
+                required
+              />
+            </Field>
+            <Field>
+              <Label>New password</Label>
+              <Input
+                type='password'
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                required
+              />
+            </Field>
+            <Field>
+              <Label>Confirm new password</Label>
+              <Input
+                type='password'
+                value={confirmNewPw}
+                onChange={(e) => setConfirmNewPw(e.target.value)}
+                required
+              />
+            </Field>
+            <Button color='indigo' type='submit' disabled={loading}>
+              {loading ? 'Updating…' : 'Change password'}
+            </Button>
+          </div>
+        </form>
+      )}
+
+      {/* DANGER ZONE */}
+      <form
+        onSubmit={handleDeleteAccount}
+        className='mt-12 space-y-6 border-t border-white/10 pt-10'
+      >
+        <h3 className='text-base/7 font-semibold text-white'>Danger zone</h3>
+        <p className='text-sm text-red-400'>
+          Deleting your account is permanent.
+        </p>
+
+        {!usingGoogle && (
+          <div className='max-w-lg space-y-4'>
+            <Field>
+              <Label>Confirm with current password</Label>
+              <Input
+                type='password'
+                value={currentPwForDelete}
+                onChange={(e) => setCurrentPwForDelete(e.target.value)}
+                required
+              />
+            </Field>
+          </div>
+        )}
+
+        {usingGoogle && (
+          <p className='text-sm text-zinc-400'>
+            You signed in with Google. We’ll ask you to reauthenticate in a
+            popup before deletion.
+          </p>
+        )}
+
+        <Button type='submit' className='bg-red-600 hover:bg-red-700'>
+          Delete account
+        </Button>
       </form>
 
       <AlertPopup
@@ -208,5 +410,12 @@ export default function AccountSettings() {
         confirmText='OK'
       />
     </>
+  );
+}
+
+// Determine whether the signed-in user has the password provider
+function authHasPasswordProvider() {
+  return !!auth.currentUser?.providerData?.some(
+    (p) => p.providerId === 'password'
   );
 }
