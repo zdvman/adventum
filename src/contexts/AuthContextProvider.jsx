@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { AuthContext } from '@/contexts/AuthContext';
 import { clearSession, loadSession, saveSession } from '@/utils/storage';
 
-import { auth, db } from '@/services/firebase';
+import { auth, db, ACTION_CODE_SETTINGS } from '@/services/firebase';
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -15,8 +15,14 @@ import {
   sendPasswordResetEmail,
   GoogleAuthProvider,
   signInWithPopup,
+  // NEW:
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  verifyBeforeUpdateEmail,
+  updatePassword as fbUpdatePassword,
+  deleteUser,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
 function buildFullName(firstName, lastName) {
   const parts = [firstName || '', lastName || '']
@@ -263,6 +269,121 @@ export function AuthContextProvider({ children }) {
     }
   }
 
+  // --- Reauthenticate helpers ----------------------------------------------
+
+  // Email/password reauth using current password
+  async function reauthWithPassword(currentPassword) {
+    if (!user?.uid || !auth.currentUser?.email) {
+      throw new Error('No authenticated user.');
+    }
+    const cred = EmailAuthProvider.credential(
+      auth.currentUser.email,
+      currentPassword
+    );
+    await reauthenticateWithCredential(auth.currentUser, cred);
+  }
+
+  // Google reauth (popup)
+  async function reauthWithGoogle() {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider); // This counts as recent login
+  }
+
+ // --- Account: update email ------------------------------------------------
+// For email/password accounts → provide { currentPassword }.
+// For Google accounts → provide { viaGoogle: true } and omit currentPassword.
+async function updateAuthEmail({ newEmail, currentPassword, viaGoogle = false }) {
+  if (!auth.currentUser) throw new Error('Not signed in.');
+  setLoading(true);
+  setError(null);
+  try {
+    if (viaGoogle) {
+      // reauth via Google popup
+      await reauthWithGoogle();
+    } else {
+      if (!currentPassword) throw new Error('Current password is required.');
+      // reauth with current password
+      const cred = EmailAuthProvider.credential(
+        auth.currentUser.email,
+        currentPassword
+      );
+      await reauthenticateWithCredential(auth.currentUser, cred);
+    }
+
+    // Send verification link to the NEW email
+    await verifyBeforeUpdateEmail(auth.currentUser, newEmail, ACTION_CODE_SETTINGS);
+
+    // Actual switch happens after the user clicks the link in the *new* inbox
+    return true;
+  } catch (err) {
+    console.error('updateAuthEmail error:', err);
+    setError(err?.message || 'Failed to start email change.');
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+}
+
+
+  // --- Account: change password --------------------------------------------
+  // For email/password users: requires currentPassword
+  // For Google users: they don't have a password (usually) → not applicable here.
+  async function changePassword({ currentPassword, newPassword }) {
+    if (!auth.currentUser) throw new Error('Not signed in');
+    setLoading(true);
+    setError(null);
+    try {
+      if (!currentPassword) throw new Error('Current password is required.');
+      if (!newPassword) throw new Error('New password is required.');
+      await reauthWithPassword(currentPassword);
+      await fbUpdatePassword(auth.currentUser, newPassword);
+      return true;
+    } catch (err) {
+      console.error('changePassword error:', err);
+      setError(err.message || 'Failed to change password');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // --- Account: delete account ---------------------------------------------
+  // Deletes Firestore profile doc then Firebase user; requires recent auth.
+  // For email/password: supply currentPassword.
+  // For Google: use { viaGoogle: true }.
+  async function deleteAccount({ currentPassword, viaGoogle = false } = {}) {
+    if (!auth.currentUser) throw new Error('Not signed in');
+    setLoading(true);
+    setError(null);
+    try {
+      if (viaGoogle) {
+        await reauthWithGoogle();
+      } else {
+        if (!currentPassword) throw new Error('Current password is required.');
+        await reauthWithPassword(currentPassword);
+      }
+
+      // delete profile doc (and TODO: cascade any user-owned collections)
+      const ref = doc(db, 'profiles', auth.currentUser.uid);
+      await deleteDoc(ref);
+
+      // delete auth user
+      await deleteUser(auth.currentUser);
+
+      // clear local state/session
+      clearSession();
+      setUser(null);
+      setProfile(null);
+      return true;
+    } catch (err) {
+      console.error('deleteAccount error:', err);
+      setError(err.message || 'Failed to delete account');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -275,6 +396,11 @@ export function AuthContextProvider({ children }) {
       resetPassword,
       signInWithGoogle,
       updateProfile,
+      // NEW:
+      updateAuthEmail,
+      changePassword,
+      deleteAccount,
+      reauthWithGoogle, // optional to call from UI if you prefer
       error,
       setError,
     }),
