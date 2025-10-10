@@ -23,7 +23,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (error) setError(null);
-  }, [location.pathname]);
+  }, [location.pathname, error, setError]);
 
   function resolveLabel({ segment, index, segments }) {
     const isEventDetail =
