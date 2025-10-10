@@ -16,6 +16,8 @@ import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import AlertPopup from '@/components/ui/AlertPopup';
 
 import { auth } from '@/services/firebase';
+import { Heading } from '@/components/catalyst-ui-kit/heading';
+import { Text } from '@/components/catalyst-ui-kit/text';
 
 export default function AccountSettings() {
   const navigate = useNavigate();
@@ -188,11 +190,8 @@ export default function AccountSettings() {
       {/* PROFILE */}
       <form onSubmit={handleSaveProfile} className='space-y-12'>
         <section className='border-b border-white/10 pb-10'>
-          <h2 className='text-base/7 font-semibold text-white'>Profile</h2>
-          <p className='mt-1 text-sm/6 text-gray-400'>
-            This information may be visible to other users.
-          </p>
-
+          <Heading>Account settings</Heading>
+          <Text>This information may be visible to other users.</Text>
           <div className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-6'>
             <div className='sm:col-span-2'>
               <Field>
