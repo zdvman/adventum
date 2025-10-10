@@ -1,3 +1,5 @@
+// src/utils/profile.js
+
 export function getFullName(profile) {
   if (!profile) return '';
   const parts = [profile.firstName, profile.lastName]

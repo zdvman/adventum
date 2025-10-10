@@ -1,5 +1,5 @@
 import { computeLifecycle } from '@/utils/eventHelpers';
-import { Badge } from '../catalyst-ui-kit/badge';
+import { Badge } from '@/components/catalyst-ui-kit/badge';
 
 export function LifecycleBadge({ ev }) {
   const state = computeLifecycle(ev);

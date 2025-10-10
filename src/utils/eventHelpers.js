@@ -1,3 +1,5 @@
+// src/utils/eventHelpers.js
+
 export function ticketsRemaining(ev) {
   const cap = Math.max(0, ev.capacity ?? 0);
   const sold = Math.max(0, ev.ticketsSold ?? 0);
@@ -35,15 +37,33 @@ export function computeLifecycle(ev, now = new Date()) {
   const startsAt = new Date(ev.startsAt);
   const endsAt = new Date(ev.endsAt);
 
-  if (ev.moderationStatus !== 'approved') {
-    return ev.moderationStatus; // 'pending' | 'rejected'
+  if (ev?.moderationStatus !== 'approved') {
+    return ev?.moderationStatus; // 'pending' | 'rejected'
   }
 
-  if (ev.publishStatus !== 'published') {
+  if (ev?.publishStatus !== 'published') {
     return 'draft'; // or 'unpublished' if you prefer
   }
 
   if (endsAt < now) return 'ended';
   if (startsAt > now) return 'upcoming';
   return 'live';
+}
+
+export function formatMoney(value, currency) {
+  if (typeof value !== 'number') return '—';
+  const c = currency || '';
+  return `${c} ${value.toFixed(2)}`;
+}
+
+export function cheapestAvailableTicket(ev) {
+  const types = Array.isArray(ev.ticketTypes) ? ev.ticketTypes : [];
+  const available = types.filter(
+    (t) => t && t.available === true && typeof t.price === 'number'
+  );
+  if (available.length === 0) return null;
+  return available.reduce(
+    (min, t) => (t.price < min.price ? t : min),
+    available[0]
+  );
 }
