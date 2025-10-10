@@ -10,6 +10,12 @@ import importPlugin from 'eslint-plugin-import';
 // flat config helpers
 import { defineConfig, globalIgnores } from 'eslint/config';
 
+// absolute path to ./src for rock-solid alias resolution in CI
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SRC = path.join(__dirname, 'src');
+
 export default defineConfig([
   // ignore build output
   globalIgnores(['dist']),
@@ -21,7 +27,6 @@ export default defineConfig([
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: globals.browser,
-      // ⬇️ THIS is the crucial bit for JSX parsing
       parserOptions: {
         ecmaFeatures: { jsx: true },
       },
@@ -50,12 +55,12 @@ export default defineConfig([
       'import/no-unresolved': 'error',
     },
 
-    // Make ESLint resolve "@/..." -> "./src"
+    // Make ESLint resolve "@/..." using an ABSOLUTE path
     settings: {
       react: { version: 'detect' },
       'import/resolver': {
         alias: {
-          map: [['@', './src']],
+          map: [['@', SRC]],
           extensions: ['.js', '.jsx'],
         },
         node: { extensions: ['.js', '.jsx'] },
@@ -87,8 +92,11 @@ export default defineConfig([
 
     rules: {
       ...(importPlugin.flatConfigs.recommended?.rules ?? {}),
-      // suppress false positive for vite plugin
-      'import/no-unresolved': ['error', { ignore: ['^@tailwindcss/vite$'] }],
+      // Suppress known resolver false-positives for config-only imports
+      'import/no-unresolved': [
+        'error',
+        { ignore: ['^@tailwindcss/vite$', '^eslint/config$'] },
+      ],
     },
 
     settings: {

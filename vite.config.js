@@ -7,14 +7,9 @@ import { fileURLToPath } from 'url';
 
 const srcPath = fileURLToPath(new URL('./src', import.meta.url));
 
-export default defineConfig(({ mode }) => ({
-  plugins: [
-    react(),
-    tailwindcss(),
-    // run ESLint only in development to avoid CI build failures
-    ...(mode === 'development' ? [eslint()] : []),
-  ],
+export default defineConfig({
+  plugins: [react(), eslint(), tailwindcss()],
   resolve: {
     alias: { '@': srcPath },
   },
-}));
+});
