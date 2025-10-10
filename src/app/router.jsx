@@ -6,8 +6,7 @@ import Home from '@/pages/Home';
 import EventsIndex from '@/pages/EventsIndex';
 import EventDetail from '@/pages/EventDetail';
 import CreateEvent from '@/pages/CreateEvent';
-import MyBookings from '@/pages/MyBookings';
-import MyEvents from '@/pages/MyEvents'; // ⬅️ new
+import MyEvents from '@/pages/MyEvents';
 import NotFound from '@/pages/NotFound';
 
 import RequireAuth from '@/components/auth/RequireAuth';
@@ -20,6 +19,8 @@ import AuthSignUp from '@/pages/AuthSignUp';
 import AuthSignIn from '@/pages/AuthSignIn';
 import AuthResetPassword from '@/pages/AuthResetPassword';
 import DevSeed from '@/pages/DevSeed';
+import Orders from '@/pages/Orders';
+import Order from '@/pages/Order';
 
 export const router = createBrowserRouter([
   {
@@ -49,7 +50,7 @@ export const router = createBrowserRouter([
         path: '/my',
         element: (
           <RequireAuth>
-            <MyBookings />
+            <Orders />
           </RequireAuth>
         ),
       },
@@ -68,10 +69,18 @@ export const router = createBrowserRouter([
             ),
           },
           {
-            path: 'tickets',
+            path: 'orders',
             element: (
               <RequireAuth>
-                <MyBookings />
+                <Orders />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'orders/:id',
+            element: (
+              <RequireAuth>
+                <Order />
               </RequireAuth>
             ),
           },
@@ -87,9 +96,14 @@ export const router = createBrowserRouter([
       },
 
       // Checkout
-      { path: 'checkout/:eventId', element: <CheckoutStart /> },
-      { path: 'checkout/success', element: <CheckoutSuccess /> },
-      { path: 'checkout/cancel', element: <CheckoutCancel /> },
+      {
+        path: '/checkout',
+        children: [
+          { path: ':idSlug', element: <CheckoutStart /> },
+          { path: 'success', element: <CheckoutSuccess /> },
+          { path: 'cancel', element: <CheckoutCancel /> },
+        ],
+      },
 
       // Misc
       { path: '/dev/seed', element: <DevSeed /> },

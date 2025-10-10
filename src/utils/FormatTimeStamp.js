@@ -1,3 +1,5 @@
+// src/utils/formatTimeStamp.js
+
 /**
  * Format a date string or timestamp into a human-readable date.
  * @param {string|number|Date} input - ISO string, timestamp, or Date
@@ -38,4 +40,14 @@ export function formatDateTime(input) {
     date: formatDate(input),
     time: formatTime24(input),
   };
+}
+
+export function formatDateRangeLabel(startsAt, endsAt) {
+  try {
+    const s = new Date(startsAt);
+    const e = new Date(endsAt);
+    return `${formatDate(s)} • ${formatTime24(s)} – ${formatTime24(e)}`;
+  } catch {
+    return '—';
+  }
 }

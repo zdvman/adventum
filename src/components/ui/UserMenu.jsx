@@ -13,8 +13,8 @@ import {
   ArrowRightStartOnRectangleIcon,
   ChevronDownIcon,
   Cog8ToothIcon,
-  LightBulbIcon,
   ShieldCheckIcon,
+  TicketIcon,
   UserIcon,
 } from '@heroicons/react/20/solid';
 import { useNavigate } from 'react-router';
@@ -42,18 +42,18 @@ function UserMenu() {
           <UserIcon />
           <DropdownLabel>My events</DropdownLabel>
         </DropdownItem>
+        <DropdownItem href='/account/orders'>
+          <TicketIcon />
+          <DropdownLabel>My orders</DropdownLabel>
+        </DropdownItem>
+        <DropdownDivider />
         <DropdownItem href='/account/settings'>
           <Cog8ToothIcon />
           <DropdownLabel>Settings</DropdownLabel>
         </DropdownItem>
-        <DropdownDivider />
         <DropdownItem href='/privacy-policy'>
           <ShieldCheckIcon />
           <DropdownLabel>Privacy policy</DropdownLabel>
-        </DropdownItem>
-        <DropdownItem href='/share-feedback'>
-          <LightBulbIcon />
-          <DropdownLabel>Share feedback</DropdownLabel>
         </DropdownItem>
         <DropdownDivider />
         <DropdownItem as='button' onClick={handleSignOut}>
