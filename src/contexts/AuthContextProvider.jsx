@@ -1,5 +1,5 @@
 // src/contexts/AuthContextProvider.jsx
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { AuthContext } from '@/contexts/AuthContext';
 import { clearSession, loadSession, saveSession } from '@/utils/storage';
 
@@ -117,42 +117,41 @@ export function AuthContextProvider({ children }) {
     return () => unsub();
   }, []);
 
-  // Actions (use loading)
-  // Email/password sign-in
-  async function signIn(email, password, { remember = false } = {}) {
-    setLoading(true);
-    setError(null);
-    try {
-      if (!email || !password)
-        throw new Error('Email and password are required.');
-      await setPersistence(
-        auth,
-        remember ? browserLocalPersistence : browserSessionPersistence
-      );
-      await signInWithEmailAndPassword(auth, email, password);
-      return true; // onAuthStateChanged will set state
-    } catch (err) {
-      console.error('Sign-in error:', err);
-      setError(err.message || 'Failed to sign in');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }
+  // No state captured → stable with []
+  const signIn = useCallback(
+    async (email, password, { remember = false } = {}) => {
+      setLoading(true);
+      setError(null);
+      try {
+        if (!email || !password)
+          throw new Error('Email and password are required.');
+        await setPersistence(
+          auth,
+          remember ? browserLocalPersistence : browserSessionPersistence
+        );
+        await signInWithEmailAndPassword(auth, email, password);
+        return true;
+      } catch (err) {
+        console.error('Sign-in error:', err);
+        setError(err.message || 'Failed to sign in');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
-  // Email/password sign-up + create profile doc
-  async function signUp(
-    {
+  const signUp = useCallback(async (data, { remember = false } = {}) => {
+    const {
       firstName,
       lastName,
-      username, // optional; defaults to email
+      username,
       email,
       password,
       role = 'member',
       avatar = '/avatars/incognito.png',
-    },
-    { remember = false } = {}
-  ) {
+    } = data;
     setLoading(true);
     setError(null);
     try {
@@ -161,15 +160,12 @@ export function AuthContextProvider({ children }) {
           'First name, last name, email, and password are required.'
         );
       }
-
       await setPersistence(
         auth,
         remember ? browserLocalPersistence : browserSessionPersistence
       );
-
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       const ref = doc(db, 'profiles', cred.user.uid);
-
       await setDoc(ref, {
         firstName,
         lastName,
@@ -180,7 +176,6 @@ export function AuthContextProvider({ children }) {
         address: null,
         createdAt: new Date().toISOString(),
       });
-
       return { uid: cred.user.uid, email: cred.user.email };
     } catch (err) {
       console.error('Sign-up error:', err);
@@ -189,10 +184,9 @@ export function AuthContextProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  // Google sign-in (POPUP ONLY)
-  async function signInWithGoogle({ remember = false } = {}) {
+  const signInWithGoogle = useCallback(async ({ remember = false } = {}) => {
     const provider = new GoogleAuthProvider();
     setLoading(true);
     setError(null);
@@ -210,9 +204,9 @@ export function AuthContextProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function resetPassword(email) {
+  const resetPassword = useCallback(async (email) => {
     if (!email) throw new Error('Email is required.');
     try {
       setLoading(true);
@@ -225,9 +219,9 @@ export function AuthContextProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function signOut() {
+  const signOut = useCallback(async () => {
     try {
       await fbSignOut(auth);
     } finally {
@@ -235,154 +229,145 @@ export function AuthContextProvider({ children }) {
       setUser(null);
       setProfile(null);
     }
-  }
+  }, []);
 
-  // Update profile document (partial fields)
-  async function updateProfile(partial) {
-    if (!user?.uid) throw new Error('Not signed in');
-    setLoading(true);
-    setError(null);
-    try {
-      const ref = doc(db, 'profiles', user.uid);
-      await setDoc(ref, partial, { merge: true });
+  // Uses user/profile → depend on them
+  const updateProfile = useCallback(
+    async (partial) => {
+      if (!user?.uid) throw new Error('Not signed in');
+      setLoading(true);
+      setError(null);
+      try {
+        const ref = doc(db, 'profiles', user.uid);
+        await setDoc(ref, partial, { merge: true });
 
-      const next = {
-        ...(profile || {}),
-        ...partial,
-      };
+        const next = { ...(profile || {}), ...partial };
+        next.fullName = buildFullName(next.firstName, next.lastName);
+        setProfile(next);
 
-      // keep derived fullName in sync
-      next.fullName = buildFullName(next.firstName, next.lastName);
+        const prev = loadSession();
+        const remember = prev?._source ? prev._source === 'local' : true;
+        saveSession({ user, profile: next, ts: Date.now() }, remember);
+        return next;
+      } catch (err) {
+        console.error('Update profile error:', err);
+        setError(err.message || 'Failed to update profile');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user, profile]
+  );
 
-      setProfile(next);
-
-      const prev = loadSession();
-      const remember = prev?._source ? prev._source === 'local' : true;
-      saveSession({ user, profile: next, ts: Date.now() }, remember);
-      return next;
-    } catch (err) {
-      console.error('Update profile error:', err);
-      setError(err.message || 'Failed to update profile');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // --- Reauthenticate helpers ----------------------------------------------
-
-  // Email/password reauth using current password
-  async function reauthWithPassword(currentPassword) {
-    if (!user?.uid || !auth.currentUser?.email) {
-      throw new Error('No authenticated user.');
-    }
-    const cred = EmailAuthProvider.credential(
-      auth.currentUser.email,
-      currentPassword
-    );
-    await reauthenticateWithCredential(auth.currentUser, cred);
-  }
-
-  // Google reauth (popup)
-  async function reauthWithGoogle() {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider); // This counts as recent login
-  }
-
- // --- Account: update email ------------------------------------------------
-// For email/password accounts → provide { currentPassword }.
-// For Google accounts → provide { viaGoogle: true } and omit currentPassword.
-async function updateAuthEmail({ newEmail, currentPassword, viaGoogle = false }) {
-  if (!auth.currentUser) throw new Error('Not signed in.');
-  setLoading(true);
-  setError(null);
-  try {
-    if (viaGoogle) {
-      // reauth via Google popup
-      await reauthWithGoogle();
-    } else {
-      if (!currentPassword) throw new Error('Current password is required.');
-      // reauth with current password
+  // Internal helpers
+  const reauthWithPassword = useCallback(
+    async (currentPassword) => {
+      if (!user?.uid || !auth.currentUser?.email)
+        throw new Error('No authenticated user.');
       const cred = EmailAuthProvider.credential(
         auth.currentUser.email,
         currentPassword
       );
       await reauthenticateWithCredential(auth.currentUser, cred);
-    }
+    },
+    [user?.uid]
+  );
 
-    // Send verification link to the NEW email
-    await verifyBeforeUpdateEmail(auth.currentUser, newEmail, ACTION_CODE_SETTINGS);
+  const reauthWithGoogle = useCallback(async () => {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+  }, []);
 
-    // Actual switch happens after the user clicks the link in the *new* inbox
-    return true;
-  } catch (err) {
-    console.error('updateAuthEmail error:', err);
-    setError(err?.message || 'Failed to start email change.');
-    throw err;
-  } finally {
-    setLoading(false);
-  }
-}
-
-
-  // --- Account: change password --------------------------------------------
-  // For email/password users: requires currentPassword
-  // For Google users: they don't have a password (usually) → not applicable here.
-  async function changePassword({ currentPassword, newPassword }) {
-    if (!auth.currentUser) throw new Error('Not signed in');
-    setLoading(true);
-    setError(null);
-    try {
-      if (!currentPassword) throw new Error('Current password is required.');
-      if (!newPassword) throw new Error('New password is required.');
-      await reauthWithPassword(currentPassword);
-      await fbUpdatePassword(auth.currentUser, newPassword);
-      return true;
-    } catch (err) {
-      console.error('changePassword error:', err);
-      setError(err.message || 'Failed to change password');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // --- Account: delete account ---------------------------------------------
-  // Deletes Firestore profile doc then Firebase user; requires recent auth.
-  // For email/password: supply currentPassword.
-  // For Google: use { viaGoogle: true }.
-  async function deleteAccount({ currentPassword, viaGoogle = false } = {}) {
-    if (!auth.currentUser) throw new Error('Not signed in');
-    setLoading(true);
-    setError(null);
-    try {
-      if (viaGoogle) {
-        await reauthWithGoogle();
-      } else {
-        if (!currentPassword) throw new Error('Current password is required.');
-        await reauthWithPassword(currentPassword);
+  // Depends on reauthWithGoogle
+  const updateAuthEmail = useCallback(
+    async ({ newEmail, currentPassword, viaGoogle = false }) => {
+      if (!auth.currentUser) throw new Error('Not signed in.');
+      setLoading(true);
+      setError(null);
+      try {
+        if (viaGoogle) {
+          await reauthWithGoogle();
+        } else {
+          if (!currentPassword)
+            throw new Error('Current password is required.');
+          const cred = EmailAuthProvider.credential(
+            auth.currentUser.email,
+            currentPassword
+          );
+          await reauthenticateWithCredential(auth.currentUser, cred);
+        }
+        await verifyBeforeUpdateEmail(
+          auth.currentUser,
+          newEmail,
+          ACTION_CODE_SETTINGS
+        );
+        return true;
+      } catch (err) {
+        console.error('updateAuthEmail error:', err);
+        setError(err?.message || 'Failed to start email change.');
+        throw err;
+      } finally {
+        setLoading(false);
       }
+    },
+    [reauthWithGoogle]
+  );
 
-      // delete profile doc (and TODO: cascade any user-owned collections)
-      const ref = doc(db, 'profiles', auth.currentUser.uid);
-      await deleteDoc(ref);
+  // Depends on reauthWithPassword
+  const changePassword = useCallback(
+    async ({ currentPassword, newPassword }) => {
+      if (!auth.currentUser) throw new Error('Not signed in');
+      setLoading(true);
+      setError(null);
+      try {
+        if (!currentPassword) throw new Error('Current password is required.');
+        if (!newPassword) throw new Error('New password is required.');
+        await reauthWithPassword(currentPassword);
+        await fbUpdatePassword(auth.currentUser, newPassword);
+        return true;
+      } catch (err) {
+        console.error('changePassword error:', err);
+        setError(err.message || 'Failed to change password');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [reauthWithPassword]
+  );
 
-      // delete auth user
-      await deleteUser(auth.currentUser);
-
-      // clear local state/session
-      clearSession();
-      setUser(null);
-      setProfile(null);
-      return true;
-    } catch (err) {
-      console.error('deleteAccount error:', err);
-      setError(err.message || 'Failed to delete account');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Depends on both reauth helpers
+  const deleteAccount = useCallback(
+    async ({ currentPassword, viaGoogle = false } = {}) => {
+      if (!auth.currentUser) throw new Error('Not signed in');
+      setLoading(true);
+      setError(null);
+      try {
+        if (viaGoogle) {
+          await reauthWithGoogle();
+        } else {
+          if (!currentPassword)
+            throw new Error('Current password is required.');
+          await reauthWithPassword(currentPassword);
+        }
+        const ref = doc(db, 'profiles', auth.currentUser.uid);
+        await deleteDoc(ref);
+        await deleteUser(auth.currentUser);
+        clearSession();
+        setUser(null);
+        setProfile(null);
+        return true;
+      } catch (err) {
+        console.error('deleteAccount error:', err);
+        setError(err.message || 'Failed to delete account');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [reauthWithGoogle, reauthWithPassword]
+  );
 
   const value = useMemo(
     () => ({
@@ -390,21 +375,39 @@ async function updateAuthEmail({ newEmail, currentPassword, viaGoogle = false })
       profile,
       initializing,
       loading,
+      // actions
       signIn,
       signUp,
       signOut,
       resetPassword,
       signInWithGoogle,
       updateProfile,
-      // NEW:
       updateAuthEmail,
       changePassword,
       deleteAccount,
-      reauthWithGoogle, // optional to call from UI if you prefer
+      reauthWithGoogle,
+      // error handling
       error,
       setError,
     }),
-    [user, profile, initializing, loading, error]
+    [
+      user,
+      profile,
+      initializing,
+      loading,
+      error,
+      setError,
+      signIn,
+      signUp,
+      signOut,
+      resetPassword,
+      signInWithGoogle,
+      updateProfile,
+      updateAuthEmail,
+      changePassword,
+      deleteAccount,
+      reauthWithGoogle,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
