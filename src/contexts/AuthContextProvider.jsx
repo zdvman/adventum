@@ -1,6 +1,6 @@
 // src/contexts/AuthContextProvider.jsx
 import { useEffect, useMemo, useState, useCallback } from 'react';
-import { AuthContext } from '@/contexts/AuthContext.js';
+import { AuthContext } from '@/contexts/authContext.js';
 import { clearSession, loadSession, saveSession } from '@/utils/storage';
 
 import { auth, db, ACTION_CODE_SETTINGS } from '@/services/firebase';
