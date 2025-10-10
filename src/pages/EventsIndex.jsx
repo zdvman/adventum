@@ -26,7 +26,7 @@ import { Input, InputGroup } from '@/components/catalyst-ui-kit/input';
 import { Link } from '@/components/catalyst-ui-kit/link';
 import { Select } from '@/components/catalyst-ui-kit/select';
 import { Strong, TextLink } from '@/components/catalyst-ui-kit/text';
-import { formatDate, formatTime24 } from '@/utils/formatTimeStamp';
+import { formatDate, formatTime24 } from '@/utils/formatTimeStamp.js';
 import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
