@@ -1,3 +1,4 @@
+// src/components/ui/UserMenu.jsx
 import { useAuth } from '@/contexts/useAuth';
 import { Avatar } from '../catalyst-ui-kit/avatar';
 import {

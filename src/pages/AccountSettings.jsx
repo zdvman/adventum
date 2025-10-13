@@ -18,6 +18,7 @@ import AlertPopup from '@/components/ui/AlertPopup';
 import { auth } from '@/services/firebase';
 import { Heading } from '@/components/catalyst-ui-kit/heading';
 import { Text } from '@/components/catalyst-ui-kit/text';
+import Loading from '@/components/ui/Loading';
 
 export default function AccountSettings() {
   const navigate = useNavigate();
@@ -32,6 +33,11 @@ export default function AccountSettings() {
     loading,
     initializing,
   } = useAuth();
+
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [updatingEmail, setUpdatingEmail] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // profile section state
   const [firstName, setFirstName] = useState(profile?.firstName || '');
@@ -74,6 +80,7 @@ export default function AccountSettings() {
   // --- Save profile (FireStore doc only) ---
   async function handleSaveProfile(e) {
     e.preventDefault();
+    setSavingProfile(true);
     try {
       await updateProfile({
         firstName: firstName.trim(),
@@ -103,12 +110,15 @@ export default function AccountSettings() {
       setAlertTitle('Update failed');
       setAlertMessage(err?.message || 'Please try again.');
       setIsAlertOpen(true);
+    } finally {
+      setSavingProfile(false);
     }
   }
 
   // --- Update email (Firebase Auth) ---
   async function handleUpdateEmail(e) {
     e.preventDefault();
+    setUpdatingEmail(true);
     try {
       const usingGoogle = !authHasPasswordProvider();
       await updateAuthEmail({
@@ -129,6 +139,8 @@ export default function AccountSettings() {
         err?.message || 'Please re-check your password and try again.'
       );
       setIsAlertOpen(true);
+    } finally {
+      setUpdatingEmail(false);
     }
   }
 
@@ -141,6 +153,7 @@ export default function AccountSettings() {
       setIsAlertOpen(true);
       return;
     }
+    setChangingPassword(true);
     try {
       await changePassword({ currentPassword: currentPw, newPassword: newPw });
       setCurrentPw('');
@@ -155,6 +168,8 @@ export default function AccountSettings() {
         err?.message || 'Please re-check your current password and try again.'
       );
       setIsAlertOpen(true);
+    } finally {
+      setChangingPassword(false);
     }
   }
 
@@ -166,6 +181,7 @@ export default function AccountSettings() {
     );
     if (!ok) return;
 
+    setDeleting(true);
     try {
       const usingGoogle = !authHasPasswordProvider(user);
       await deleteAccount({
@@ -178,6 +194,8 @@ export default function AccountSettings() {
       setAlertTitle('Delete failed');
       setAlertMessage(err?.message || 'Unable to delete your account.');
       setIsAlertOpen(true);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -273,10 +291,11 @@ export default function AccountSettings() {
             Cancel
           </Button>
           <Button color='indigo' type='submit' disabled={loading}>
-            {loading ? 'Saving…' : 'Save'}
+            {savingProfile ? 'Saving…' : 'Save'}
           </Button>
         </div>
       </form>
+      {savingProfile && <Loading />}
 
       {/* ACCOUNT: EMAIL */}
       <form
@@ -316,53 +335,57 @@ export default function AccountSettings() {
           )}
 
           <Button color='indigo' type='submit' disabled={loading}>
-            {loading ? 'Updating…' : 'Update email'}
+            {updatingEmail ? 'Updating…' : 'Update email'}
           </Button>
         </div>
       </form>
+      {updatingEmail && <Loading />}
 
       {/* ACCOUNT: PASSWORD */}
       {!usingGoogle && (
-        <form
-          onSubmit={handleChangePassword}
-          className='mt-12 space-y-6 border-t border-white/10 pt-10'
-        >
-          <h3 className='text-base/7 font-semibold text-white'>
-            Change password
-          </h3>
-          <div className='max-w-lg space-y-4'>
-            <Field>
-              <Label>Current password</Label>
-              <Input
-                type='password'
-                value={currentPw}
-                onChange={(e) => setCurrentPw(e.target.value)}
-                required
-              />
-            </Field>
-            <Field>
-              <Label>New password</Label>
-              <Input
-                type='password'
-                value={newPw}
-                onChange={(e) => setNewPw(e.target.value)}
-                required
-              />
-            </Field>
-            <Field>
-              <Label>Confirm new password</Label>
-              <Input
-                type='password'
-                value={confirmNewPw}
-                onChange={(e) => setConfirmNewPw(e.target.value)}
-                required
-              />
-            </Field>
-            <Button color='indigo' type='submit' disabled={loading}>
-              {loading ? 'Updating…' : 'Change password'}
-            </Button>
-          </div>
-        </form>
+        <>
+          <form
+            onSubmit={handleChangePassword}
+            className='mt-12 space-y-6 border-t border-white/10 pt-10'
+          >
+            <h3 className='text-base/7 font-semibold text-white'>
+              Change password
+            </h3>
+            <div className='max-w-lg space-y-4'>
+              <Field>
+                <Label>Current password</Label>
+                <Input
+                  type='password'
+                  value={currentPw}
+                  onChange={(e) => setCurrentPw(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field>
+                <Label>New password</Label>
+                <Input
+                  type='password'
+                  value={newPw}
+                  onChange={(e) => setNewPw(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field>
+                <Label>Confirm new password</Label>
+                <Input
+                  type='password'
+                  value={confirmNewPw}
+                  onChange={(e) => setConfirmNewPw(e.target.value)}
+                  required
+                />
+              </Field>
+              <Button color='indigo' type='submit' disabled={loading}>
+                {changingPassword ? 'Updating…' : 'Change password'}
+              </Button>
+            </div>
+          </form>
+          {changingPassword && <Loading />}
+        </>
       )}
 
       {/* DANGER ZONE */}
@@ -397,9 +420,10 @@ export default function AccountSettings() {
         )}
 
         <Button type='submit' className='bg-red-600 hover:bg-red-700'>
-          Delete account
+          {deleting ? 'Deleting…' : 'Delete account'}
         </Button>
       </form>
+      {deleting && <Loading />}
 
       <AlertPopup
         isOpen={isAlertOpen}
@@ -408,6 +432,26 @@ export default function AccountSettings() {
         description={alertMessage}
         confirmText='OK'
       />
+
+      {(savingProfile ||
+        updatingEmail ||
+        changingPassword ||
+        deleting ||
+        loading) && (
+        <Loading
+          label={
+            deleting
+              ? 'Deleting account…'
+              : savingProfile
+              ? 'Saving profile…'
+              : updatingEmail
+              ? 'Updating email…'
+              : changingPassword
+              ? 'Changing password…'
+              : 'Working…'
+          }
+        />
+      )}
     </>
   );
 }

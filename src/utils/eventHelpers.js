@@ -32,6 +32,15 @@ export function isOnSale(ev) {
   return anyTicketTypeAvailable(ev);
 }
 
+export const isPublished = (ev) =>
+  ev?.publishStatus === 'published' && ev?.moderationStatus === 'approved';
+
+export function shouldShowSaleBadgeInMyEvents(ev) {
+  const state = computeLifecycle(ev);
+  if (!isPublished(ev)) return false;
+  return state === 'upcoming' || state === 'live';
+}
+
 /** High-level lifecycle state for list badges */
 export function computeLifecycle(ev, now = new Date()) {
   const startsAt = new Date(ev.startsAt);
@@ -66,4 +75,8 @@ export function cheapestAvailableTicket(ev) {
     (min, t) => (t.price < min.price ? t : min),
     available[0]
   );
+}
+
+export function getTicketsAvailableNumber(ev) {
+  return Math.max(0, (ev.capacity ?? 0) - (ev.ticketsSold ?? 0));
 }

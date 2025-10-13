@@ -1,17 +1,7 @@
 // src/pages/MyEvents.jsx
 import { useEffect, useMemo, useState } from 'react';
-import { db } from '@/services/firebase';
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  doc,
-  deleteDoc,
-} from 'firebase/firestore';
-
 import { useAuth } from '@/contexts/useAuth';
+
 import { Badge } from '@/components/catalyst-ui-kit/badge';
 import { Button } from '@/components/catalyst-ui-kit/button';
 import { Divider } from '@/components/catalyst-ui-kit/divider';
@@ -26,14 +16,30 @@ import { Input, InputGroup } from '@/components/catalyst-ui-kit/input';
 import { Link } from '@/components/catalyst-ui-kit/link';
 import { Select } from '@/components/catalyst-ui-kit/select';
 import { Strong, TextLink } from '@/components/catalyst-ui-kit/text';
+
 import { formatDate, formatTime24 } from '@/utils/formatTimeStamp';
+import { composeIdSlug } from '@/utils/slug';
+import {
+  getTicketsAvailableNumber,
+  isOnSale,
+  shouldShowSaleBadgeInMyEvents,
+} from '@/utils/eventHelpers';
+
 import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/16/solid';
-import { composeIdSlug } from '@/utils/slug';
-import { isOnSale } from '@/utils/eventHelpers';
+
 import { LifecycleBadge } from '@/components/ui/LifecycleBadge';
+import Loading from '@/components/ui/Loading';
+
+// 🔗 new API layer
+import {
+  getVenuesMap,
+  getMyEvents,
+  deleteEventAsCreator,
+  deleteEventAsStaff,
+} from '@/services/api';
 
 export default function MyEvents() {
   const { user, profile } = useAuth();
@@ -42,51 +48,46 @@ export default function MyEvents() {
   const [venuesMap, setVenuesMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     if (!user?.uid) return;
+
+    let ignore = false;
     async function load() {
       setLoading(true);
       setErr(null);
       try {
-        // Load only venues referenced by user's events — but since we don't know them yet,
-        // we can (for simplicity) load all venues. If this grows large, switch to a batched fetch by ids.
-        const vSnap = await getDocs(collection(db, 'venues'));
-        const vMap = {};
-        vSnap.forEach((d) => (vMap[d.id] = { id: d.id, ...d.data() }));
-        setVenuesMap(vMap);
-
-        // All events created by me (include drafts/unpublished)
-        const qy = query(
-          collection(db, 'events'),
-          where('createdBy', '==', user.uid),
-          orderBy('startsAt', 'desc')
-        );
-        const eSnap = await getDocs(qy);
-        const list = [];
-        eSnap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-        setEvents(list);
+        const [vMap, myEvents] = await Promise.all([
+          getVenuesMap(),
+          getMyEvents(user.uid),
+        ]);
+        if (!ignore) {
+          setVenuesMap(vMap);
+          setEvents(myEvents);
+        }
       } catch (e) {
         console.error(e);
-        setErr(e.message || 'Failed to load your events');
+        if (!ignore) setErr(e.message || 'Failed to load your events');
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }
+
     load();
+    return () => {
+      ignore = true;
+    };
   }, [user?.uid]);
 
   const rows = useMemo(() => {
     return events.map((ev) => {
       const venue = venuesMap[ev.venueId];
-      const ticketsAvailable = Math.max(
-        0,
-        (ev.capacity ?? 0) - (ev.ticketsSold ?? 0)
-      );
-      const onSale = isOnSale(ev); // was this code - ticketsAvailable > 0;
+      const ticketsAvailable = getTicketsAvailableNumber(ev);
+      const showSale = shouldShowSaleBadgeInMyEvents(ev);
+      const onSale = showSale ? isOnSale(ev) : false;
       const idSlug = composeIdSlug(ev.id, ev.title);
 
-      // I own these; staff also owns everything effectively.
       const isOwner = user?.uid === ev.createdBy;
       const isStaff = profile?.role === 'staff';
       const canEdit = isOwner || isStaff;
@@ -100,26 +101,45 @@ export default function MyEvents() {
         idSlug,
         canEdit,
         canDelete,
+        showSale,
       };
     });
   }, [events, venuesMap, user?.uid, profile?.role]);
 
   async function handleDelete(ev) {
-    const ok = confirm(`Delete event “${ev.title}”? This cannot be undone.`);
+    const isStaff = profile?.role === 'staff';
+    const ok = confirm(
+      isStaff
+        ? `Delete event “${ev.title}”? This will also remove all related orders.`
+        : `Delete event “${ev.title}”? This is only allowed if it’s not published and has no orders.`
+    );
     if (!ok) return;
+
+    setDeletingId(ev.id);
     try {
-      await deleteDoc(doc(db, 'events', ev.id));
+      if (isStaff) {
+        const res = await deleteEventAsStaff(ev.id);
+        if (!res?.deleted) throw new Error('Cascade delete failed.');
+      } else {
+        const res = await deleteEventAsCreator(ev.id);
+        if (!res?.deleted) {
+          // Friendly server message when creator is blocked
+          const reason =
+            res?.message ||
+            'Event cannot be deleted (published or has orders).';
+          throw new Error(reason);
+        }
+      }
       setEvents((prev) => prev.filter((e) => e.id !== ev.id));
     } catch (e) {
       alert(e.message || 'Failed to delete event.');
+    } finally {
+      setDeletingId(null);
     }
   }
 
   if (!user?.uid) return null;
-  if (loading)
-    return (
-      <div className='py-10 text-sm text-zinc-500'>Loading your events…</div>
-    );
+  if (loading) return <Loading label='Loading your events…' />;
   if (err) return <div className='py-10 text-sm text-red-500'>{err}</div>;
 
   const empty = rows.length === 0;
@@ -168,6 +188,7 @@ export default function MyEvents() {
                 idSlug,
                 canEdit,
                 canDelete,
+                showSale,
               },
               idx
             ) => (
@@ -198,43 +219,92 @@ export default function MyEvents() {
                       <div className='text-xs/6 text-zinc-600'>
                         Available tickets {ticketsAvailable}/{ev.capacity ?? 0}
                       </div>
+
+                      {/* MOBILE: badges inside info block */}
+                      <div className='sm:hidden pt-1 flex items-center gap-2'>
+                        <LifecycleBadge
+                          ev={ev}
+                          className='text-[10px] px-2 py-0.5'
+                        />
+                        {showSale && (
+                          <Badge
+                            color={onSale ? 'lime' : 'zinc'}
+                            className='text-[10px] px-2 py-0.5'
+                          >
+                            {onSale ? 'On Sale' : 'Closed'}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
 
+                  {/* RIGHT COLUMN: desktop badges + actions */}
                   <div className='flex items-center gap-4'>
-                    <LifecycleBadge ev={ev} />
-                    <Badge
-                      className='max-sm:hidden'
-                      color={onSale ? 'lime' : 'zinc'}
-                    >
-                      {onSale ? 'On Sale' : 'Closed'}
-                    </Badge>
-
-                    <Dropdown>
-                      <DropdownButton plain aria-label='More options'>
-                        <EllipsisVerticalIcon />
-                      </DropdownButton>
-                      <DropdownMenu anchor='bottom end'>
-                        <DropdownItem href={`/events/${idSlug}`}>
-                          View
-                        </DropdownItem>
-
-                        {canEdit && (
-                          <DropdownItem href={`/events/${ev.id}/edit`}>
-                            Edit
+                    {/* DESKTOP badges */}
+                    <LifecycleBadge ev={ev} className='max-sm:hidden' />
+                    {showSale && (
+                      <Badge
+                        className='max-sm:hidden'
+                        color={onSale ? 'lime' : 'zinc'}
+                      >
+                        {onSale ? 'On Sale' : 'Closed'}
+                      </Badge>
+                    )}
+                    {/* ACTIONS — render separate Dropdowns for mobile and desktop */}
+                    {/* Mobile: ellipsis icon */}
+                    <div className='sm:hidden'>
+                      <Dropdown>
+                        <DropdownButton plain aria-label='More options'>
+                          <EllipsisVerticalIcon className='w-5 h-5' />
+                        </DropdownButton>
+                        <DropdownMenu anchor='bottom end'>
+                          <DropdownItem href={`/events/${idSlug}`}>
+                            View
                           </DropdownItem>
-                        )}
-
-                        {canDelete && (
-                          <DropdownItem
-                            as='button'
-                            onClick={() => handleDelete(ev)}
-                          >
-                            Delete
+                          {canEdit && (
+                            <DropdownItem href={`/events/${ev.id}/edit`}>
+                              Edit
+                            </DropdownItem>
+                          )}
+                          {canDelete && (
+                            <DropdownItem
+                              as='button'
+                              onClick={() => handleDelete(ev)}
+                              disabled={deletingId === ev.id}
+                            >
+                              {deletingId === ev.id ? 'Deleting…' : 'Delete'}
+                            </DropdownItem>
+                          )}
+                        </DropdownMenu>
+                      </Dropdown>
+                    </div>
+                    {/* Desktop: “Actions” button */}
+                    <div className='hidden sm:block'>
+                      <Dropdown>
+                        <DropdownButton size='sm' color='zinc'>
+                          Actions
+                        </DropdownButton>
+                        <DropdownMenu anchor='bottom end'>
+                          <DropdownItem href={`/events/${idSlug}`}>
+                            View
                           </DropdownItem>
-                        )}
-                      </DropdownMenu>
-                    </Dropdown>
+                          {canEdit && (
+                            <DropdownItem href={`/events/${ev.id}/edit`}>
+                              Edit
+                            </DropdownItem>
+                          )}
+                          {canDelete && (
+                            <DropdownItem
+                              as='button'
+                              onClick={() => handleDelete(ev)}
+                              disabled={deletingId === ev.id}
+                            >
+                              {deletingId === ev.id ? 'Deleting…' : 'Delete'}
+                            </DropdownItem>
+                          )}
+                        </DropdownMenu>
+                      </Dropdown>
+                    </div>
                   </div>
                 </div>
               </li>
@@ -242,6 +312,8 @@ export default function MyEvents() {
           )}
         </ul>
       )}
+
+      {deletingId && <Loading label='Deleting event…' />}
     </>
   );
 }

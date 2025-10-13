@@ -4,6 +4,8 @@ import { AuthContext } from '@/contexts/authContext.js';
 import { clearSession, loadSession, saveSession } from '@/utils/storage';
 
 import { auth, db, ACTION_CODE_SETTINGS } from '@/services/firebase';
+import { callDeleteIfNoDependencies } from '@/services/cloudFunctions';
+
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -20,9 +22,14 @@ import {
   reauthenticateWithCredential,
   verifyBeforeUpdateEmail,
   updatePassword as fbUpdatePassword,
-  deleteUser,
+  // deleteUser,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import {
+  doc,
+  getDoc,
+  setDoc,
+  // deleteDoc
+} from 'firebase/firestore';
 
 function buildFullName(firstName, lastName) {
   const parts = [firstName || '', lastName || '']
@@ -337,7 +344,7 @@ export function AuthContextProvider({ children }) {
     [reauthWithPassword]
   );
 
-  // Depends on both reauth helpers
+  // in AuthContextProvider.jsx (your current version with callDeleteIfNoDependencies already imported)
   const deleteAccount = useCallback(
     async ({ currentPassword, viaGoogle = false } = {}) => {
       if (!auth.currentUser) throw new Error('Not signed in');
@@ -351,16 +358,45 @@ export function AuthContextProvider({ children }) {
             throw new Error('Current password is required.');
           await reauthWithPassword(currentPassword);
         }
-        const ref = doc(db, 'profiles', auth.currentUser.uid);
-        await deleteDoc(ref);
-        await deleteUser(auth.currentUser);
+
+        const result = await callDeleteIfNoDependencies(); // <-- returns {deleted, message, details?}
+
+        if (!result?.deleted) {
+          // Prefer structured details
+          if (result?.details?.code === 'blocked-has-dependencies') {
+            const friendly =
+              `You can’t delete your account because there are linked records:\n` +
+              `• Events created: ${result?.details?.events ?? 0}\n` +
+              `• Orders: ${result?.details?.orders ?? 0}\n` +
+              `Please contact staff to remove them first.`;
+            setError(friendly);
+            throw new Error(friendly);
+          }
+
+          // Fallback nice message if server didn’t send details
+          const friendly =
+            'You can’t delete your account because it has linked records (events or bookings). Please contact staff.';
+          setError(friendly);
+          throw new Error(friendly);
+        }
+
         clearSession();
         setUser(null);
         setProfile(null);
         return true;
       } catch (err) {
         console.error('deleteAccount error:', err);
-        setError(err.message || 'Failed to delete account');
+        // If server threw with details, still show friendly message
+        if (err?.details?.code === 'blocked-has-dependencies') {
+          const friendly =
+            `You can’t delete your account because there are linked records:\n` +
+            `• Events created: ${err.details.events ?? 0}\n` +
+            `• Bookings: ${err.details.bookings ?? 0}\n` +
+            `Please contact staff to remove them first.`;
+          setError(friendly);
+          throw new Error(friendly);
+        }
+        setError(err?.message || 'Failed to delete account');
         throw err;
       } finally {
         setLoading(false);

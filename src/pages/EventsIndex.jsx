@@ -1,17 +1,6 @@
 // src/pages/EventsIndex.jsx
 import { useEffect, useMemo, useState } from 'react';
-import { db } from '@/services/firebase';
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  doc,
-  deleteDoc,
-} from 'firebase/firestore';
 
-import { useAuth } from '@/contexts/useAuth';
 import { Badge } from '@/components/catalyst-ui-kit/badge';
 import { Button } from '@/components/catalyst-ui-kit/button';
 import { Divider } from '@/components/catalyst-ui-kit/divider';
@@ -26,54 +15,50 @@ import { Input, InputGroup } from '@/components/catalyst-ui-kit/input';
 import { Link } from '@/components/catalyst-ui-kit/link';
 import { Select } from '@/components/catalyst-ui-kit/select';
 import { Strong, TextLink } from '@/components/catalyst-ui-kit/text';
+
 import { formatDate, formatTime24 } from '@/utils/formatTimeStamp.js';
+import { composeIdSlug } from '@/utils/slug';
+import { isOnSale } from '@/utils/eventHelpers';
+import Loading from '@/components/ui/Loading';
+
 import {
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/16/solid';
-import { composeIdSlug } from '@/utils/slug';
-import { isOnSale } from '@/utils/eventHelpers';
+
+import { getPublicEvents, getVenuesMap } from '@/services/api';
 
 export default function EventsIndex() {
-  const { user, profile } = useAuth(); // ⬅️ permissions come from here
-
   const [events, setEvents] = useState([]);
   const [venuesMap, setVenuesMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
   useEffect(() => {
+    let alive = true;
     async function load() {
       setLoading(true);
       setErr(null);
       try {
-        // Venues (map by id)
-        const vSnap = await getDocs(collection(db, 'venues'));
-        const vMap = {};
-        vSnap.forEach((d) => (vMap[d.id] = { id: d.id, ...d.data() }));
+        const [vMap, eList] = await Promise.all([
+          getVenuesMap(),
+          getPublicEvents(),
+        ]);
+        if (!alive) return;
         setVenuesMap(vMap);
-
-        // Future, approved, published
-        const nowIso = new Date().toISOString();
-        const qy = query(
-          collection(db, 'events'),
-          where('endsAt', '>', nowIso),
-          where('moderationStatus', '==', 'approved'), // moderationStatus (staff-controlled): "pending" | "approved" | "rejected"
-          where('publishStatus', '==', 'published'), // publishStatus (creator/staff-controlled): "draft" | "published" (you can add "archived"/"scheduled" later if you need)
-          orderBy('endsAt', 'asc')
-        );
-        const eSnap = await getDocs(qy);
-        const list = [];
-        eSnap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-        setEvents(list);
+        setEvents(eList);
       } catch (e) {
         console.error(e);
-        setErr(e.message || 'Failed to load events');
+        if (!alive) return;
+        setErr(e?.message || 'Failed to load events');
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
     }
     load();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const rows = useMemo(() => {
@@ -86,45 +71,23 @@ export default function EventsIndex() {
       const onSale = isOnSale(ev);
       const idSlug = composeIdSlug(ev.id, ev.title);
 
-      // 🔐 permissions per row
-      const isOwner = user?.uid === ev.createdBy;
-      const isStaff = profile?.role === 'staff';
-      const canEdit = isStaff || isOwner;
-      const canDelete = canEdit;
-
       return {
         ev,
         venue,
         ticketsAvailable,
         onSale,
         idSlug,
-        canEdit,
-        canDelete,
       };
     });
-  }, [events, venuesMap, user?.uid, profile?.role]);
-
-  async function handleDelete(ev) {
-    const ok = confirm(`Delete event “${ev.title}”? This cannot be undone.`);
-    if (!ok) return;
-    try {
-      await deleteDoc(doc(db, 'events', ev.id));
-      setEvents((prev) => prev.filter((e) => e.id !== ev.id));
-    } catch (e) {
-      alert(e.message || 'Failed to delete event.'); // your AlertPopup would be nicer
-    }
-  }
+  }, [events, venuesMap]);
 
   if (loading) {
-    return <div className='py-10 text-sm text-zinc-500'>Loading events…</div>;
+    return <Loading label='Loading events…' />;
   }
+
   if (err) {
     return <div className='py-10 text-sm text-red-500'>{err}</div>;
   }
-
-  const isStaff = profile?.role === 'staff';
-  // If you also want to let non-staff creators make new events, allow here too:
-  const canCreate = isStaff; // or: const canCreate = true;
 
   return (
     <>
@@ -135,11 +98,11 @@ export default function EventsIndex() {
             <div className='flex-1'>
               <InputGroup>
                 <MagnifyingGlassIcon />
-                <Input name='search' placeholder='Search events&hellip;' />
+                <Input name='search' placeholder='Search events…' />
               </InputGroup>
             </div>
             <div>
-              <Select name='sort_by'>
+              <Select name='sort_by' defaultValue='date'>
                 <option value='name'>Sort by name</option>
                 <option value='date'>Sort by date</option>
                 <option value='status'>Sort by status</option>
@@ -148,82 +111,83 @@ export default function EventsIndex() {
           </div>
         </div>
 
-        {canCreate && <Button href='/events/new'>Create event</Button>}
+        {/* Anyone signed-in can create, but button is visible even if not (it will redirect to auth as needed) */}
+        <Button href='/events/new'>Create event</Button>
       </div>
 
       <ul className='mt-10'>
-        {rows.map(
-          (
-            { ev, venue, ticketsAvailable, onSale, idSlug, canEdit, canDelete },
-            idx
-          ) => (
-            <li key={ev.id}>
-              <Divider soft={idx > 0} />
-              <div className='flex items-center justify-between'>
-                <div className='flex gap-6 py-6'>
-                  <div className='w-32 shrink-0'>
-                    <Link href={`/events/${idSlug}`} aria-hidden='true'>
-                      <img
-                        className='aspect-3/2 rounded-lg shadow-sm'
-                        src={ev.image}
-                        alt={ev.title}
-                      />
-                    </Link>
+        {rows.map(({ ev, venue, ticketsAvailable, onSale, idSlug }, idx) => (
+          <li key={ev.id}>
+            <Divider soft={idx > 0} />
+            <div className='flex items-center justify-between'>
+              <div className='flex gap-6 py-6'>
+                <div className='w-32 shrink-0'>
+                  <Link href={`/events/${idSlug}`} aria-hidden='true'>
+                    <img
+                      className='aspect-3/2 rounded-lg shadow-sm'
+                      src={ev.image}
+                      alt={ev.title}
+                    />
+                  </Link>
+                </div>
+                <div className='space-y-1.5'>
+                  <TextLink href={`/events/${idSlug}`}>
+                    <Strong>{ev.title}</Strong>
+                  </TextLink>
+
+                  <div className='text-xs/6 text-zinc-500'>
+                    {formatDate(ev.startsAt)} at {formatTime24(ev.startsAt)}{' '}
+                    <span aria-hidden='true'>·</span>{' '}
+                    {venue ? `${venue.city}, ${venue.country}` : '—'}
                   </div>
-                  <div className='space-y-1.5'>
-                    <TextLink href={`/events/${idSlug}`}>
-                      <Strong>{ev.title}</Strong>
-                    </TextLink>
 
-                    <div className='text-xs/6 text-zinc-500'>
-                      {formatDate(ev.startsAt)} at {formatTime24(ev.startsAt)}{' '}
-                      <span aria-hidden='true'>·</span>{' '}
-                      {venue ? `${venue.city}, ${venue.country}` : '—'}
-                    </div>
-
-                    <div className='text-xs/6 text-zinc-600'>
-                      Available tickets {ticketsAvailable}/{ev.capacity ?? 0}
-                    </div>
+                  <div className='text-xs/6 text-zinc-600'>
+                    Available tickets {ticketsAvailable}/{ev.capacity ?? 0}
+                  </div>
+                  <div className='sm:hidden pt-1'>
+                    <Badge
+                      color={onSale ? 'lime' : 'zinc'}
+                      className='text-[10px] px-2 py-0.5'
+                    >
+                      {onSale ? 'On Sale' : 'Closed'}
+                    </Badge>
                   </div>
                 </div>
+              </div>
 
-                <div className='flex items-center gap-4'>
-                  <Badge
-                    className='max-sm:hidden'
-                    color={onSale ? 'lime' : 'zinc'}
-                  >
-                    {onSale ? 'On Sale' : 'Closed'}
-                  </Badge>
+              <div className='flex items-center gap-4'>
+                <Badge
+                  className='max-sm:hidden'
+                  color={onSale ? 'lime' : 'zinc'}
+                >
+                  {onSale ? 'On Sale' : 'Closed'}
+                </Badge>
 
+                {/* Public list: only “View” action */}
+                {/* Mobile: show Ellipsis icon with dropdown */}
+                <div className='sm:hidden'>
                   <Dropdown>
                     <DropdownButton plain aria-label='More options'>
-                      <EllipsisVerticalIcon />
+                      <EllipsisVerticalIcon className='w-5 h-5' />
                     </DropdownButton>
                     <DropdownMenu anchor='bottom end'>
                       <DropdownItem href={`/events/${idSlug}`}>
                         View
                       </DropdownItem>
-
-                      {canEdit && (
-                        <DropdownItem href={`/events/${ev.id}/edit`}>
-                          Edit
-                        </DropdownItem>
-                      )}
-                      {canDelete && (
-                        <DropdownItem
-                          as='button'
-                          onClick={() => handleDelete(ev)}
-                        >
-                          Delete
-                        </DropdownItem>
-                      )}
                     </DropdownMenu>
                   </Dropdown>
                 </div>
+
+                {/* Desktop: show normal “View” button */}
+                <div className='hidden sm:block'>
+                  <Button href={`/events/${idSlug}`} size='sm'>
+                    View
+                  </Button>
+                </div>
               </div>
-            </li>
-          )
-        )}
+            </div>
+          </li>
+        ))}
       </ul>
     </>
   );

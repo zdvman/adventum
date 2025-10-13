@@ -1,7 +1,7 @@
 import { computeLifecycle } from '@/utils/eventHelpers';
 import { Badge } from '@/components/catalyst-ui-kit/badge';
 
-export function LifecycleBadge({ ev }) {
+export function LifecycleBadge({ ev, className }) {
   const state = computeLifecycle(ev);
   const map = {
     pending: { label: 'Pending review', color: 'amber' },
@@ -12,5 +12,9 @@ export function LifecycleBadge({ ev }) {
     ended: { label: 'Ended', color: 'zinc' },
   };
   const { label, color } = map[state] ?? { label: state, color: 'zinc' };
-  return <Badge color={color}>{label}</Badge>;
+  return (
+    <Badge color={color} className={className}>
+      {label}
+    </Badge>
+  );
 }
