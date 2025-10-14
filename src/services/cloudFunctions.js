@@ -42,3 +42,9 @@ export async function getRole(uid) {
   const { data } = await fn({ uid });
   return data.role; // 'member' | 'staff'
 }
+
+export async function callPublishEvent(eventId) {
+  const fn = httpsCallable(functions, 'publishEvent');
+  const res = await fn({ eventId });
+  return res.data;
+}
