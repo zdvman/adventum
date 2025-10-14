@@ -25,3 +25,14 @@ export async function callCreatorDeleteEventSafely(eventId) {
   const result = await fn({ eventId });
   return result.data; // { deleted: boolean, message?, details? }
 }
+
+// src/services/cloudFunctions.js
+export async function callStaffSetModerationStatus(
+  eventId,
+  moderationStatus,
+  reason = ''
+) {
+  const fn = httpsCallable(functions, 'staffSetModerationStatus');
+  const { data } = await fn({ eventId, moderationStatus, reason });
+  return data;
+}

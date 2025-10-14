@@ -159,27 +159,53 @@ const styles = {
 };
 
 export const Button = forwardRef(function Button(
-  { color, outline, plain, className, children, ...props },
+  { color, outline, plain, className, children, disabled, ...props },
   ref
 ) {
-  let classes = clsx(
+  const isDisabled = !!disabled;
+
+  const classes = clsx(
     className,
     styles.base,
     outline
       ? styles.outline
       : plain
       ? styles.plain
-      : clsx(styles.solid, styles.colors[color ?? 'dark/zinc'])
+      : clsx(styles.solid, styles.colors[color ?? 'dark/zinc']),
+    isDisabled ? 'cursor-not-allowed pointer-events-none' : undefined
   );
 
-  return typeof props.href === 'string' ? (
-    <Link {...props} className={classes} ref={ref}>
-      <TouchTarget>{children}</TouchTarget>
-    </Link>
-  ) : (
+  const dataDisabled = isDisabled ? { 'data-disabled': '' } : {};
+
+  // Link-style button
+  if (typeof props.href === 'string') {
+    if (isDisabled) {
+      // Render a non-interactive element when disabled
+      return (
+        <span
+          {...dataDisabled}
+          aria-disabled='true'
+          className={classes}
+          ref={ref}
+        >
+          <TouchTarget>{children}</TouchTarget>
+        </span>
+      );
+    }
+    return (
+      <Link {...props} className={classes} ref={ref}>
+        <TouchTarget>{children}</TouchTarget>
+      </Link>
+    );
+  }
+
+  // Real button
+  return (
     <Headless.Button
       {...props}
-      className={clsx(classes, 'cursor-default')}
+      {...dataDisabled}
+      disabled={isDisabled}
+      className={classes}
       ref={ref}
     >
       <TouchTarget>{children}</TouchTarget>
@@ -187,9 +213,6 @@ export const Button = forwardRef(function Button(
   );
 });
 
-/**
- * Expand the hit area to at least 44×44px on touch devices
- */
 export function TouchTarget({ children }) {
   return (
     <>
