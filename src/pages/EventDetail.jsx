@@ -1,7 +1,7 @@
 // src/pages/EventDetail.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer } from 'firebase/firestore';
 import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/useAuth';
 
@@ -34,9 +34,10 @@ import {
 // Shared
 import Loading from '@/components/ui/Loading';
 import { formatDateRangeLabel } from '@/utils/formatTimeStamp.js';
+import NotFound from './NotFound';
 
 export default function EventDetail() {
-  const { setError } = useAuth();
+  const { user, profile, initializing, setError } = useAuth();
   const navigate = useNavigate();
   const { idSlug = '' } = useParams();
   const { id } = useMemo(() => splitIdSlug(idSlug), [idSlug]);
@@ -45,31 +46,45 @@ export default function EventDetail() {
   const [event, setEvent] = useState(null);
   const [venue, setVenue] = useState(null);
 
+  // guard result: 'ok' | 'forbidden' | 'notfound'
+  const [guard, setGuard] = useState('ok');
+
   useEffect(() => {
     let ignore = false;
+
     async function load() {
       setLoading(true);
+      setGuard('ok');
+
       try {
         if (!id) {
-          navigate('/404', { replace: true });
+          if (!ignore) setGuard('notfound');
           return;
         }
 
-        // Fetch event
-        const evSnap = await getDoc(doc(db, 'events', id));
+        // Force a server read to respect latest rules (avoid stale cache)
+        let evSnap;
+        try {
+          evSnap = await getDocFromServer(doc(db, 'events', id));
+        } catch (e) {
+          // Permission denied → event exists but you can't read it
+          if (!ignore) setGuard('forbidden');
+          throw e;
+        }
+
         if (!evSnap.exists()) {
-          navigate('/404', { replace: true });
+          if (!ignore) setGuard('notfound');
           return;
         }
         const ev = { id: evSnap.id, ...evSnap.data() };
 
-        // Optional venue
+        // Optional venue (this read is public per your rules)
         let v = null;
         if (ev.venueId) {
+          // venue read is always public; getDoc (server or cache is fine)
           const vSnap = await getDoc(doc(db, 'venues', ev.venueId));
           if (vSnap.exists()) v = { id: vSnap.id, ...vSnap.data() };
         }
-
         if (ignore) return;
 
         // Canonicalize URL if title changed
@@ -78,29 +93,65 @@ export default function EventDetail() {
           navigate(canonical, { replace: true });
         }
 
+        // Runtime guard (belt-and-suspenders on top of rules)
+        const isStaff = profile?.role === 'staff';
+        const isOwner = user && ev.createdBy === user.uid;
+        const isPublicApproved =
+          ev.publishStatus === 'published' &&
+          ev.moderationStatus === 'approved';
+
+        if (!(isStaff || isOwner || isPublicApproved)) {
+          setGuard('forbidden');
+          return;
+        }
+
         setEvent(ev);
         setVenue(v);
       } catch (e) {
-        console.error(e);
-        setError(e?.message || 'Failed to load event');
+        // Log but don't overwrite explicit guard decisions above
+        console.error('EventDetail load error:', e);
+        setError?.(e?.message || 'Failed to load event');
       } finally {
         if (!ignore) setLoading(false);
       }
     }
-    load();
+    // Wait until we know who the user is before deciding owner/staff/public
+    if (!initializing) {
+      load();
+    }
     return () => {
       ignore = true;
     };
-  }, [id, navigate, setError]);
+  }, [id, navigate, setError, initializing, user?.uid, profile?.role]);
 
-  if (loading) return <Loading />;
+  // While auth bootstraps OR fetching the doc
+  if (initializing || loading) return <Loading />;
+
+  if (guard === 'notfound') {
+    return (
+      <NotFound
+        header='Page not found'
+        message='Sorry, we couldn’t find the event you’re looking for.'
+        error='404'
+      />
+    );
+  }
+
+  if (guard === 'forbidden') {
+    return (
+      <NotFound
+        header='Forbidden'
+        message='You do not have permission to view this event.'
+        error='403'
+      />
+    );
+  }
+
   if (!event) return null;
 
   /* -------------------- derived using your helpers -------------------- */
-
   const remaining = ticketsRemaining(event);
   const onSale = isOnSale(event);
-
   const dateRangeLabel = formatDateRangeLabel(event.startsAt, event.endsAt);
 
   // Headline price label
@@ -117,7 +168,6 @@ export default function EventDetail() {
         cheapest.currency || event.currency
       )}`;
     } else if (typeof event.price === 'number') {
-      // flat price fallback (no ticket types)
       priceLabel = formatMoney(event.price, event.currency);
     } else if (anyTicketTypeAvailable(event) === false) {
       priceLabel = 'Sold out';
