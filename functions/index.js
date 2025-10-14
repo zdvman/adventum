@@ -234,3 +234,33 @@ export const staffSetModerationStatus = onCall(async (req) => {
 
   return { ok: true };
 });
+
+// --- NEW: creator/staff publish action (safe server-side) ---
+export const publishEvent = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const eventId = req.data?.eventId;
+  if (!eventId) throw new HttpsError('invalid-argument', 'Missing eventId.');
+
+  const db = getFirestore();
+  const role = await readRole(uid);
+  const isStaff = role === 'staff';
+
+  const ref = db.collection('events').doc(eventId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Event not found.');
+
+  const ev = snap.data();
+  const isOwner = ev.createdBy === uid;
+  if (!(isOwner || isStaff))
+    throw new HttpsError('permission-denied', 'Not allowed to publish.');
+
+  // Business rule: publish -> moderation = pending, bump timestamps
+  await ref.update({
+    publishStatus: 'published',
+    moderationStatus: 'pending',
+    updatedAt: new Date().toISOString(),
+  });
+
+  return { published: true };
+});

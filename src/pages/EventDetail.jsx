@@ -37,7 +37,12 @@ import NotFound from './NotFound';
 import { LifecycleBadge } from '@/components/ui/LifecycleBadge';
 import AlertPopup from '@/components/ui/AlertPopup';
 
-import { getEventByIdServer, getVenueById } from '@/services/api';
+import {
+  getEventByIdServer,
+  getVenueById,
+  staffApproveEvent,
+  staffRejectEvent,
+} from '@/services/api';
 
 export default function EventDetail() {
   const { user, profile, initializing, setError } = useAuth();
@@ -258,6 +263,53 @@ export default function EventDetail() {
                         Tickets
                       </Text>
                     </div>
+
+                    {(profile?.role === 'staff' ||
+                      (user && event.createdBy === user.uid)) && (
+                      <div className='mt-4 flex gap-2'>
+                        <Button href={`/events/${event.id}/edit`} size='sm'>
+                          Edit
+                        </Button>
+
+                        {profile?.role === 'staff' &&
+                          event.publishStatus === 'published' &&
+                          event.moderationStatus === 'pending' && (
+                            <>
+                              <Button
+                                size='sm'
+                                color='green'
+                                onClick={async () => {
+                                  try {
+                                    await staffApproveEvent(event.id);
+                                  } catch (e) {
+                                    setAlertTitle('Approve failed');
+                                    setAlertMessage(e?.message || '');
+                                    setIsAlertOpen(true);
+                                  }
+                                }}
+                              >
+                                Approve
+                              </Button>
+
+                              <Button
+                                size='sm'
+                                color='red'
+                                onClick={async () => {
+                                  try {
+                                    await staffRejectEvent(event.id);
+                                  } catch (e) {
+                                    setAlertTitle('Reject failed');
+                                    setAlertMessage(e?.message || '');
+                                    setIsAlertOpen(true);
+                                  }
+                                }}
+                              >
+                                Reject
+                              </Button>
+                            </>
+                          )}
+                      </div>
+                    )}
 
                     <div className='mt-2 text-2xl font-semibold'>
                       {priceLabel}

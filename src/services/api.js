@@ -11,12 +11,14 @@ import {
   getDocFromServer,
   getDoc,
   updateDoc,
+  addDoc,
 } from 'firebase/firestore';
 import {
   callStaffCascadeDeleteEvent,
   callCreatorDeleteEventSafely,
   callStaffDeleteUserCascade,
   getRole,
+  callPublishEvent,
 } from '@/services/cloudFunctions';
 
 /** Build a { [venueId]: { id, ...data } } map */
@@ -152,4 +154,45 @@ export async function staffRejectEvent(eventId) {
 
 export async function isStaffUser(uid) {
   return (await getRole(uid)) === 'staff';
+}
+
+export async function createEventDraft(uid, payload) {
+  const now = new Date().toISOString();
+  const base = {
+    // permissions/ownership
+    createdBy: uid,
+    // lifecycle
+    publishStatus: 'draft',
+    moderationStatus: 'pending', // harmless while draft; will be re-set on publish
+    createdAt: now,
+    updatedAt: now,
+    // sane defaults
+    ticketsSold: 0,
+    capacity: payload.capacity ?? 0,
+  };
+  const ref = await addDoc(collection(db, 'events'), { ...payload, ...base });
+  // Return freshly read copy so caller has all server defaults
+  const snap = await getDocFromServer(doc(db, 'events', ref.id));
+  return { id: ref.id, ...snap.data() };
+}
+
+// --- NEW: update draft/fields (creator or staff, rules enforce) ---
+export async function updateEventFields(eventId, partial) {
+  await updateDoc(doc(db, 'events', eventId), {
+    ...partial,
+    updatedAt: new Date().toISOString(),
+  });
+  const snap = await getDoc(doc(db, 'events', eventId));
+  return { id: eventId, ...snap.data() };
+}
+
+// --- NEW: publish (server will set moderationStatus: 'pending') ---
+export async function publishEvent(eventId) {
+  return await callPublishEvent(eventId);
+}
+
+// (optional) fetch for edit prefill (cache OK)
+export async function getEventById(id) {
+  const snap = await getDoc(doc(db, 'events', id));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
