@@ -9,10 +9,15 @@ import {
 } from '@/components/catalyst-ui-kit/dropdown';
 import { Avatar } from '@/components/catalyst-ui-kit/avatar';
 import {
+  CheckIcon,
   ChevronDownIcon,
   Cog8ToothIcon,
+  MapIcon,
   PlusIcon,
   ShieldCheckIcon,
+  TableCellsIcon,
+  TagIcon,
+  UsersIcon,
 } from '@heroicons/react/20/solid';
 import { SidebarItem, SidebarLabel } from '../catalyst-ui-kit/sidebar';
 
@@ -26,28 +31,32 @@ export default function StaffDropdownMenu({ className }) {
         <ChevronDownIcon />
       </DropdownButton>
       <DropdownMenu className='min-w-80 lg:min-w-64' anchor='bottom start'>
-        <DropdownItem href='/teams/1/settings'>
+        {/* <DropdownItem href='/teams/1/settings'>
           <Cog8ToothIcon />
           <DropdownLabel>Settings</DropdownLabel>
         </DropdownItem>
-        <DropdownDivider />
-        <DropdownItem href='/teams/1'>
-          <Avatar slot='icon' src='/tailwind-logo.svg' />
-          <DropdownLabel>Tailwind Labs</DropdownLabel>
+        <DropdownDivider /> */}
+        <DropdownItem href='/staff/users'>
+          <UsersIcon />
+          <DropdownLabel>Users</DropdownLabel>
         </DropdownItem>
-        <DropdownItem href='/teams/2'>
-          <Avatar
-            slot='icon'
-            initials='WC'
-            className='bg-purple-500 text-white'
-          />
-          <DropdownLabel>Workcation</DropdownLabel>
+        <DropdownItem href='/staff/events'>
+          <TableCellsIcon />
+          <DropdownLabel>Events</DropdownLabel>
         </DropdownItem>
-        <DropdownDivider />
+        <DropdownItem href='/staff/venues'>
+          <MapIcon />
+          <DropdownLabel>Venues</DropdownLabel>
+        </DropdownItem>
+        <DropdownItem href='/staff/categories'>
+          <TagIcon />
+          <DropdownLabel>Categories</DropdownLabel>
+        </DropdownItem>
+        {/* <DropdownDivider />
         <DropdownItem href='/teams/create'>
           <PlusIcon />
           <DropdownLabel>New team&hellip;</DropdownLabel>
-        </DropdownItem>
+        </DropdownItem> */}
       </DropdownMenu>
     </Dropdown>
   );

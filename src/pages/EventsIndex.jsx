@@ -18,7 +18,7 @@ import { Strong, TextLink } from '@/components/catalyst-ui-kit/text';
 
 import { formatDate, formatTime24 } from '@/utils/formatTimeStamp.js';
 import { composeIdSlug } from '@/utils/slug';
-import { isOnSale } from '@/utils/eventHelpers';
+import { isOnSale, ticketsRemaining } from '@/utils/eventHelpers';
 import Loading from '@/components/ui/Loading';
 
 import {
@@ -64,10 +64,7 @@ export default function EventsIndex() {
   const rows = useMemo(() => {
     return events.map((ev) => {
       const venue = venuesMap[ev.venueId];
-      const ticketsAvailable = Math.max(
-        0,
-        (ev.capacity ?? 0) - (ev.ticketsSold ?? 0)
-      );
+      const ticketsAvailable = ticketsRemaining(ev);
       const onSale = isOnSale(ev);
       const idSlug = composeIdSlug(ev.id, ev.title);
 

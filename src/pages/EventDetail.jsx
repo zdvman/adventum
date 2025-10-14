@@ -1,8 +1,6 @@
 // src/pages/EventDetail.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { doc, getDoc, getDocFromServer } from 'firebase/firestore';
-import { db } from '@/services/firebase';
 import { useAuth } from '@/contexts/useAuth';
 
 import { composeIdSlug, splitIdSlug } from '@/utils/slug';
@@ -12,6 +10,7 @@ import {
   isOnSale,
   formatMoney,
   cheapestAvailableTicket,
+  shouldShowSaleBadgeInMyEvents,
 } from '@/utils/eventHelpers';
 
 // Catalyst UI
@@ -35,6 +34,9 @@ import {
 import Loading from '@/components/ui/Loading';
 import { formatDateRangeLabel } from '@/utils/formatTimeStamp.js';
 import NotFound from './NotFound';
+import { LifecycleBadge } from '@/components/ui/LifecycleBadge';
+
+import { getEventByIdServer, getVenueById } from '@/services/api';
 
 export default function EventDetail() {
   const { user, profile, initializing, setError } = useAuth();
@@ -43,11 +45,9 @@ export default function EventDetail() {
   const { id } = useMemo(() => splitIdSlug(idSlug), [idSlug]);
 
   const [loading, setLoading] = useState(true);
+  const [guard, setGuard] = useState('ok'); // 'ok' | 'forbidden' | 'notfound'
   const [event, setEvent] = useState(null);
   const [venue, setVenue] = useState(null);
-
-  // guard result: 'ok' | 'forbidden' | 'notfound'
-  const [guard, setGuard] = useState('ok');
 
   useEffect(() => {
     let ignore = false;
@@ -65,9 +65,9 @@ export default function EventDetail() {
         // Force a server read to respect latest rules (avoid stale cache)
         let evSnap;
         try {
-          evSnap = await getDocFromServer(doc(db, 'events', id));
+          evSnap = await getEventByIdServer(id);
         } catch (e) {
-          // Permission denied → event exists but you can't read it
+          // If Firestore denies read, treat as forbidden (event may exist)
           if (!ignore) setGuard('forbidden');
           throw e;
         }
@@ -82,7 +82,7 @@ export default function EventDetail() {
         let v = null;
         if (ev.venueId) {
           // venue read is always public; getDoc (server or cache is fine)
-          const vSnap = await getDoc(doc(db, 'venues', ev.venueId));
+          const vSnap = await getVenueById(ev.venueId);
           if (vSnap.exists()) v = { id: vSnap.id, ...vSnap.data() };
         }
         if (ignore) return;
@@ -108,7 +108,7 @@ export default function EventDetail() {
         setEvent(ev);
         setVenue(v);
       } catch (e) {
-        // Log but don't overwrite explicit guard decisions above
+        // keep explicit guard decisions
         console.error('EventDetail load error:', e);
         setError?.(e?.message || 'Failed to load event');
       } finally {
@@ -122,7 +122,7 @@ export default function EventDetail() {
     return () => {
       ignore = true;
     };
-  }, [id, navigate, setError, initializing, user?.uid, profile?.role]);
+  }, [id, navigate, setError, initializing, user?.uid, profile?.role, user]);
 
   // While auth bootstraps OR fetching the doc
   if (initializing || loading) return <Loading />;
@@ -152,6 +152,7 @@ export default function EventDetail() {
   /* -------------------- derived using your helpers -------------------- */
   const remaining = ticketsRemaining(event);
   const onSale = isOnSale(event);
+  const showSale = shouldShowSaleBadgeInMyEvents(event);
   const dateRangeLabel = formatDateRangeLabel(event.startsAt, event.endsAt);
 
   // Headline price label
@@ -245,15 +246,21 @@ export default function EventDetail() {
                     href={`/checkout/${composeIdSlug(event.id, event.title)}`}
                     color='indigo'
                     className='mt-4 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 font-medium'
-                    disabled={!onSale}
+                    disabled={!showSale || !onSale}
                   >
-                    {onSale ? 'Get tickets' : 'Not on sale'}
+                    {onSale && showSale ? 'Get tickets' : 'Not on sale'}
                   </Button>
 
                   <div className='mt-4 flex items-center gap-2 text-xs text-zinc-400'>
-                    <Badge color={onSale ? 'lime' : 'zinc'}>
-                      {onSale ? 'On Sale' : 'Closed'}
-                    </Badge>
+                    {showSale && (
+                      <Badge color={onSale ? 'lime' : 'zinc'}>
+                        {onSale ? 'On Sale' : 'Closed'}
+                      </Badge>
+                    )}
+                    <LifecycleBadge
+                      ev={event}
+                      className='text-[10px] px-2 py-0.5'
+                    />
                     <span>
                       • {remaining}/{event.capacity ?? 0} available
                     </span>

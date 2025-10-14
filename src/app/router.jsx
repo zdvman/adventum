@@ -21,6 +21,8 @@ import AuthResetPassword from '@/pages/AuthResetPassword';
 import DevSeed from '@/pages/DevSeed';
 import Orders from '@/pages/Orders';
 import Order from '@/pages/Order';
+import RequireStaff from '@/components/auth/RequireStaff';
+import EventsIndexStaff from '@/pages/EventsIndexStaff';
 
 export const router = createBrowserRouter([
   {
@@ -53,6 +55,24 @@ export const router = createBrowserRouter([
             <Orders />
           </RequireAuth>
         ),
+      },
+
+      // Staff section aliases
+      {
+        path: 'staff',
+        children: [
+          { index: true, loader: () => redirect('/staff/events') },
+          {
+            path: 'events',
+            element: (
+              <RequireAuth>
+                <RequireStaff>
+                  <EventsIndexStaff />
+                </RequireStaff>
+              </RequireAuth>
+            ),
+          },
+        ],
       },
 
       // Account hub (nested)

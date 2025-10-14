@@ -203,3 +203,34 @@ export const creatorDeleteEventSafely = onCall(async (req) => {
   await evRef.delete();
   return { deleted: true };
 });
+
+// STAFF: set moderationStatus on an event
+export const staffSetModerationStatus = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const role = await readRole(uid);
+  if (role !== 'staff') {
+    throw new HttpsError('permission-denied', 'Staff only.');
+  }
+
+  const { eventId, moderationStatus, reason } = req.data || {};
+  if (!eventId || !moderationStatus) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Missing eventId/moderationStatus.'
+    );
+  }
+
+  const db = getFirestore();
+  await db
+    .collection('events')
+    .doc(eventId)
+    .update({
+      moderationStatus,
+      ...(reason ? { moderationReason: reason } : {}),
+      updatedAt: new Date(),
+    });
+
+  return { ok: true };
+});

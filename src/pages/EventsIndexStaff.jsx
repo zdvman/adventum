@@ -1,4 +1,4 @@
-// src/pages/MyEvents.jsx
+// src/pages/EventsIndexStaff.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/useAuth';
 
@@ -33,15 +33,19 @@ import {
 import { LifecycleBadge } from '@/components/ui/LifecycleBadge';
 import Loading from '@/components/ui/Loading';
 
-// 🔗 API layer (only user-owned events)
+// 🔗 API layer
 import {
   getVenuesMap,
-  getMyEvents,
-  deleteEventAsCreator,
+  subscribeAllEventsForStaff,
+  sortStaffEvents,
+  deleteEventAsStaff,
+  staffApproveEvent,
+  staffRejectEvent,
 } from '@/services/api';
 
-export default function MyEvents() {
-  const { user } = useAuth();
+export default function EventsIndexStaff() {
+  const { profile } = useAuth();
+  const isStaff = profile?.role === 'staff';
 
   const [events, setEvents] = useState([]);
   const [venuesMap, setVenuesMap] = useState({});
@@ -50,34 +54,43 @@ export default function MyEvents() {
   const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
-    if (!user?.uid) return;
-
+    if (!isStaff) return;
     let ignore = false;
-    async function load() {
+
+    async function init() {
       setLoading(true);
       setErr(null);
       try {
-        const [vMap, myEvents] = await Promise.all([
-          getVenuesMap(),
-          getMyEvents(user.uid), // ⬅️ only events created by this user
-        ]);
-        if (!ignore) {
-          setVenuesMap(vMap);
-          setEvents(myEvents);
-        }
+        const vMap = await getVenuesMap(); // one-time
+        if (ignore) return;
+        setVenuesMap(vMap);
+
+        const unsub = subscribeAllEventsForStaff((list) => {
+          // sort on every snapshot
+          list.sort(sortStaffEvents);
+          setEvents(list);
+          setLoading(false);
+        });
+
+        return unsub;
       } catch (e) {
         console.error(e);
-        if (!ignore) setErr(e.message || 'Failed to load your events');
+        if (!ignore) setErr(e.message || 'Failed to load events');
       } finally {
         if (!ignore) setLoading(false);
       }
     }
 
-    load();
+    let cleanup;
+    init().then((unsub) => {
+      cleanup = unsub;
+    });
+
     return () => {
       ignore = true;
+      if (typeof cleanup === 'function') cleanup();
     };
-  }, [user?.uid]);
+  }, [isStaff]);
 
   const rows = useMemo(() => {
     return events.map((ev) => {
@@ -87,10 +100,10 @@ export default function MyEvents() {
       const onSale = showSale ? isOnSale(ev) : false;
       const idSlug = composeIdSlug(ev.id, ev.title);
 
-      // This page lists ONLY the current user's events:
-      const canEdit = true;
-      // Creator can delete only if not published (Cloud Function also checks no orders)
-      const canDelete = ev.publishStatus !== 'published';
+      const canEdit = true; // staff
+      const canDelete = true; // staff
+      const canApprove = ev.moderationStatus === 'pending';
+      const canReject = ev.moderationStatus === 'pending';
 
       return {
         ev,
@@ -101,25 +114,23 @@ export default function MyEvents() {
         canEdit,
         canDelete,
         showSale,
+        canApprove,
+        canReject,
       };
     });
   }, [events, venuesMap]);
 
   async function handleDelete(ev) {
     const ok = confirm(
-      `Delete event “${ev.title}”? This is only allowed if it’s not published and has no orders.`
+      `Delete event “${ev.title}”? This will also remove all related orders.`
     );
     if (!ok) return;
 
     setDeletingId(ev.id);
     try {
-      const res = await deleteEventAsCreator(ev.id);
-      if (!res?.deleted) {
-        const reason =
-          res?.message || 'Event cannot be deleted (published or has orders).';
-        throw new Error(reason);
-      }
-      setEvents((prev) => prev.filter((e) => e.id !== ev.id));
+      const res = await deleteEventAsStaff(ev.id);
+      if (!res?.deleted) throw new Error('Cascade delete failed.');
+      // Realtime listener removes it; no manual setEvents needed
     } catch (e) {
       alert(e.message || 'Failed to delete event.');
     } finally {
@@ -127,8 +138,69 @@ export default function MyEvents() {
     }
   }
 
-  if (!user?.uid) return null;
-  if (loading) return <Loading label='Loading your events…' />;
+  async function handleApprove(ev) {
+    // optimistic flip
+    setEvents((prev) =>
+      prev
+        .map((e) =>
+          e.id === ev.id
+            ? {
+                ...e,
+                moderationStatus: 'approved',
+                updatedAt: new Date().toISOString(),
+              }
+            : e
+        )
+        .sort(sortStaffEvents)
+    );
+    try {
+      await staffApproveEvent(ev.id);
+      // snapshot will confirm; nothing else to do
+    } catch (e) {
+      // rollback on error
+      setEvents((prev) =>
+        prev
+          .map((e) =>
+            e.id === ev.id ? { ...e, moderationStatus: 'pending' } : e
+          )
+          .sort(sortStaffEvents)
+      );
+      alert(e?.message || 'Failed to approve.');
+    }
+  }
+
+  async function handleReject(ev) {
+    // optimistic flip
+    setEvents((prev) =>
+      prev
+        .map((e) =>
+          e.id === ev.id
+            ? {
+                ...e,
+                moderationStatus: 'rejected',
+                updatedAt: new Date().toISOString(),
+              }
+            : e
+        )
+        .sort(sortStaffEvents)
+    );
+    try {
+      await staffRejectEvent(ev.id);
+    } catch (e) {
+      // rollback on error
+      setEvents((prev) =>
+        prev
+          .map((e) =>
+            e.id === ev.id ? { ...e, moderationStatus: 'pending' } : e
+          )
+          .sort(sortStaffEvents)
+      );
+      alert(e?.message || 'Failed to reject.');
+    }
+  }
+
+  if (!isStaff) return null;
+  if (loading) return <Loading label='Loading events…' />;
   if (err) return <div className='py-10 text-sm text-red-500'>{err}</div>;
 
   const empty = events.length === 0;
@@ -137,19 +209,18 @@ export default function MyEvents() {
     <>
       <div className='flex flex-wrap items-end justify-between gap-4'>
         <div className='max-sm:w-full sm:flex-1'>
-          <Heading>My events</Heading>
+          <Heading>All events (staff)</Heading>
           <div className='mt-4 flex max-w-xl gap-4'>
             <div className='flex-1'>
               <InputGroup>
                 <MagnifyingGlassIcon />
-                <Input name='search' placeholder='Search my events…' />
+                <Input name='search' placeholder='Search events…' />
               </InputGroup>
             </div>
             <div>
-              <Select name='sort_by' defaultValue='starts_desc'>
-                <option value='starts_desc'>Newest first</option>
-                <option value='starts_asc'>Oldest first</option>
-                <option value='name'>By name</option>
+              {/* Sorting is handled client-side; this select can be wired up later */}
+              <Select name='sort_by' defaultValue='pending_oldest' disabled>
+                <option value='pending_oldest'>Pending first (oldest)</option>
               </Select>
             </div>
           </div>
@@ -159,11 +230,7 @@ export default function MyEvents() {
 
       {empty ? (
         <div className='mt-10 rounded-xl border border-zinc-800 p-6 text-sm text-zinc-400'>
-          You don’t have any events yet.{' '}
-          <TextLink href='/events/new'>
-            <Strong>Create your first event</Strong>
-          </TextLink>
-          .
+          No events yet.
         </div>
       ) : (
         <ul className='mt-10'>
@@ -178,6 +245,8 @@ export default function MyEvents() {
                 canEdit,
                 canDelete,
                 showSale,
+                canApprove,
+                canReject,
               },
               idx
             ) => (
@@ -246,6 +315,22 @@ export default function MyEvents() {
                           <EllipsisVerticalIcon className='w-5 h-5' />
                         </DropdownButton>
                         <DropdownMenu anchor='bottom end'>
+                          {canApprove && (
+                            <DropdownItem
+                              as='button'
+                              onClick={() => handleApprove(ev)}
+                            >
+                              Approve
+                            </DropdownItem>
+                          )}
+                          {canReject && (
+                            <DropdownItem
+                              as='button'
+                              onClick={() => handleReject(ev)}
+                            >
+                              Reject
+                            </DropdownItem>
+                          )}
                           <DropdownItem href={`/events/${idSlug}`}>
                             View
                           </DropdownItem>
@@ -273,6 +358,22 @@ export default function MyEvents() {
                           Actions
                         </DropdownButton>
                         <DropdownMenu anchor='bottom end'>
+                          {canApprove && (
+                            <DropdownItem
+                              as='button'
+                              onClick={() => handleApprove(ev)}
+                            >
+                              Approve
+                            </DropdownItem>
+                          )}
+                          {canReject && (
+                            <DropdownItem
+                              as='button'
+                              onClick={() => handleReject(ev)}
+                            >
+                              Reject
+                            </DropdownItem>
+                          )}
                           <DropdownItem href={`/events/${idSlug}`}>
                             View
                           </DropdownItem>
