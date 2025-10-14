@@ -32,6 +32,7 @@ import {
 
 import { LifecycleBadge } from '@/components/ui/LifecycleBadge';
 import Loading from '@/components/ui/Loading';
+import AlertPopup from '@/components/ui/AlertPopup';
 
 // 🔗 API layer
 import {
@@ -50,7 +51,10 @@ export default function EventsIndexStaff() {
   const [events, setEvents] = useState([]);
   const [venuesMap, setVenuesMap] = useState({});
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState(null);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [reloadTick, setReloadTick] = useState(0);
   const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
@@ -59,7 +63,7 @@ export default function EventsIndexStaff() {
 
     async function init() {
       setLoading(true);
-      setErr(null);
+
       try {
         const vMap = await getVenuesMap(); // one-time
         if (ignore) return;
@@ -75,7 +79,12 @@ export default function EventsIndexStaff() {
         return unsub;
       } catch (e) {
         console.error(e);
-        if (!ignore) setErr(e.message || 'Failed to load events');
+        if (!ignore) {
+          const msg = e?.message || 'Failed to load events';
+          setAlertTitle('Failed to load events');
+          setAlertMessage(msg);
+          setIsAlertOpen(true);
+        }
       } finally {
         if (!ignore) setLoading(false);
       }
@@ -90,7 +99,7 @@ export default function EventsIndexStaff() {
       ignore = true;
       if (typeof cleanup === 'function') cleanup();
     };
-  }, [isStaff]);
+  }, [isStaff, reloadTick]);
 
   const rows = useMemo(() => {
     return events.map((ev) => {
@@ -132,7 +141,9 @@ export default function EventsIndexStaff() {
       if (!res?.deleted) throw new Error('Cascade delete failed.');
       // Realtime listener removes it; no manual setEvents needed
     } catch (e) {
-      alert(e.message || 'Failed to delete event.');
+      setAlertTitle('Delete failed');
+      setAlertMessage(e?.message || 'Failed to delete event.');
+      setIsAlertOpen(true);
     } finally {
       setDeletingId(null);
     }
@@ -165,7 +176,9 @@ export default function EventsIndexStaff() {
           )
           .sort(sortStaffEvents)
       );
-      alert(e?.message || 'Failed to approve.');
+      setAlertTitle('Approve failed');
+      setAlertMessage(e?.message || 'Failed to approve.');
+      setIsAlertOpen(true);
     }
   }
 
@@ -195,13 +208,14 @@ export default function EventsIndexStaff() {
           )
           .sort(sortStaffEvents)
       );
-      alert(e?.message || 'Failed to reject.');
+      setAlertTitle('Reject failed');
+      setAlertMessage(e?.message || 'Failed to reject.');
+      setIsAlertOpen(true);
     }
   }
 
   if (!isStaff) return null;
   if (loading) return <Loading label='Loading events…' />;
-  if (err) return <div className='py-10 text-sm text-red-500'>{err}</div>;
 
   const empty = events.length === 0;
 
@@ -403,6 +417,15 @@ export default function EventsIndexStaff() {
       )}
 
       {deletingId && <Loading label='Deleting event…' />}
+      <AlertPopup
+        isOpen={isAlertOpen}
+        setIsOpen={setIsAlertOpen}
+        title={alertTitle}
+        description={alertMessage}
+        confirmText='Try again'
+        cancelText='Close'
+        onConfirm={() => setReloadTick((t) => t + 1)}
+      />
     </>
   );
 }

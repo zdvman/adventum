@@ -32,6 +32,7 @@ import {
 
 import { LifecycleBadge } from '@/components/ui/LifecycleBadge';
 import Loading from '@/components/ui/Loading';
+import AlertPopup from '@/components/ui/AlertPopup';
 
 // 🔗 API layer (only user-owned events)
 import {
@@ -48,6 +49,11 @@ export default function MyEvents() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [alertConfirm, setAlertConfirm] = useState(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -67,7 +73,14 @@ export default function MyEvents() {
         }
       } catch (e) {
         console.error(e);
-        if (!ignore) setErr(e.message || 'Failed to load your events');
+        if (!ignore) {
+          const msg = e?.message || 'Failed to load your events';
+          setErr(msg);
+          setAlertTitle('Could not load your events');
+          setAlertMessage(msg);
+          setAlertConfirm(() => () => setReloadTick((t) => t + 1)); // retry
+          setIsAlertOpen(true);
+        }
       } finally {
         if (!ignore) setLoading(false);
       }
@@ -77,7 +90,7 @@ export default function MyEvents() {
     return () => {
       ignore = true;
     };
-  }, [user?.uid]);
+  }, [user?.uid, reloadTick]);
 
   const rows = useMemo(() => {
     return events.map((ev) => {
@@ -121,7 +134,10 @@ export default function MyEvents() {
       }
       setEvents((prev) => prev.filter((e) => e.id !== ev.id));
     } catch (e) {
-      alert(e.message || 'Failed to delete event.');
+      setAlertTitle('Delete failed');
+      setAlertMessage(e?.message || 'Failed to delete event.');
+      setAlertConfirm(null);
+      setIsAlertOpen(true);
     } finally {
       setDeletingId(null);
     }
@@ -302,6 +318,16 @@ export default function MyEvents() {
       )}
 
       {deletingId && <Loading label='Deleting event…' />}
+
+      <AlertPopup
+        isOpen={isAlertOpen}
+        setIsOpen={setIsAlertOpen}
+        title={alertTitle}
+        description={alertMessage}
+        confirmText={alertConfirm ? 'Try again' : 'OK'}
+        cancelText={alertConfirm ? 'Close' : undefined}
+        onConfirm={alertConfirm || undefined}
+      />
     </>
   );
 }

@@ -16,6 +16,7 @@ import {
   callStaffCascadeDeleteEvent,
   callCreatorDeleteEventSafely,
   callStaffDeleteUserCascade,
+  getRole,
 } from '@/services/cloudFunctions';
 
 /** Build a { [venueId]: { id, ...data } } map */
@@ -147,4 +148,8 @@ export async function staffRejectEvent(eventId) {
     // publishStatus: 'draft',
     updatedAt: new Date().toISOString(),
   });
+}
+
+export async function isStaffUser(uid) {
+  return (await getRole(uid)) === 'staff';
 }

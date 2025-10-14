@@ -1,3 +1,4 @@
+// src/components/ui/AddressAutocomplete.jsx
 import { useEffect, useRef, useState } from 'react';
 import { Field, Label } from '@/components/catalyst-ui-kit/fieldset';
 import { Input } from '@/components/catalyst-ui-kit/input';
