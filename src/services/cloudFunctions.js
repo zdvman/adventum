@@ -36,3 +36,9 @@ export async function callStaffSetModerationStatus(
   const { data } = await fn({ eventId, moderationStatus, reason });
   return data;
 }
+
+export async function getRole(uid) {
+  const fn = httpsCallable(functions, 'getRole');
+  const { data } = await fn({ uid });
+  return data.role; // 'member' | 'staff'
+}

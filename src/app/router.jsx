@@ -23,6 +23,9 @@ import Orders from '@/pages/Orders';
 import Order from '@/pages/Order';
 import RequireStaff from '@/components/auth/RequireStaff';
 import EventsIndexStaff from '@/pages/EventsIndexStaff';
+import UsersIndexStaff from '@/pages/UsersIndexStaff';
+import VenuesIndexStaff from '@/pages/VenuesIndexStaff';
+import CategoriesIndexStaff from '@/pages/CategoriesIndexStaff';
 
 export const router = createBrowserRouter([
   {
@@ -68,6 +71,36 @@ export const router = createBrowserRouter([
               <RequireAuth>
                 <RequireStaff>
                   <EventsIndexStaff />
+                </RequireStaff>
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'users',
+            element: (
+              <RequireAuth>
+                <RequireStaff>
+                  <UsersIndexStaff />
+                </RequireStaff>
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'venues',
+            element: (
+              <RequireAuth>
+                <RequireStaff>
+                  <VenuesIndexStaff />
+                </RequireStaff>
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'categories',
+            element: (
+              <RequireAuth>
+                <RequireStaff>
+                  <CategoriesIndexStaff />
                 </RequireStaff>
               </RequireAuth>
             ),

@@ -20,6 +20,7 @@ import { formatDate, formatTime24 } from '@/utils/formatTimeStamp.js';
 import { composeIdSlug } from '@/utils/slug';
 import { isOnSale, ticketsRemaining } from '@/utils/eventHelpers';
 import Loading from '@/components/ui/Loading';
+import AlertPopup from '@/components/ui/AlertPopup';
 
 import {
   EllipsisVerticalIcon,
@@ -32,13 +33,15 @@ export default function EventsIndex() {
   const [events, setEvents] = useState([]);
   const [venuesMap, setVenuesMap] = useState({});
   const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState(null);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [alertTitle, setAlertTitle] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     let alive = true;
     async function load() {
       setLoading(true);
-      setErr(null);
       try {
         const [vMap, eList] = await Promise.all([
           getVenuesMap(),
@@ -50,7 +53,11 @@ export default function EventsIndex() {
       } catch (e) {
         console.error(e);
         if (!alive) return;
-        setErr(e?.message || 'Failed to load events');
+        const msg =
+          e?.message || 'Something went wrong while loading the events list.';
+        setAlertTitle('Failed to load events');
+        setAlertMessage(msg);
+        setIsAlertOpen(true);
       } finally {
         if (alive) setLoading(false);
       }
@@ -59,7 +66,7 @@ export default function EventsIndex() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadTick]);
 
   const rows = useMemo(() => {
     return events.map((ev) => {
@@ -79,11 +86,20 @@ export default function EventsIndex() {
   }, [events, venuesMap]);
 
   if (loading) {
-    return <Loading label='Loading events…' />;
-  }
-
-  if (err) {
-    return <div className='py-10 text-sm text-red-500'>{err}</div>;
+    return (
+      <>
+        <Loading label='Loading events…' />
+        <AlertPopup
+          isOpen={isAlertOpen}
+          setIsOpen={setIsAlertOpen}
+          title={alertTitle}
+          description={alertMessage}
+          confirmText='Try again'
+          cancelText='Close'
+          onConfirm={() => setReloadTick((t) => t + 1)}
+        />
+      </>
+    );
   }
 
   return (
@@ -186,6 +202,15 @@ export default function EventsIndex() {
           </li>
         ))}
       </ul>
+      <AlertPopup
+        isOpen={isAlertOpen}
+        setIsOpen={setIsAlertOpen}
+        title={alertTitle}
+        description={alertMessage}
+        confirmText='Try again'
+        cancelText='Close'
+        onConfirm={() => setReloadTick((t) => t + 1)}
+      />
     </>
   );
 }
