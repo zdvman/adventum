@@ -12,6 +12,7 @@ import {
   getDoc,
   updateDoc,
   addDoc,
+  setDoc,
 } from 'firebase/firestore';
 import {
   callStaffCascadeDeleteEvent,
@@ -20,7 +21,7 @@ import {
   getRole,
   callPublishEvent,
 } from '@/services/cloudFunctions';
-
+import { slugify } from '@/utils/slug';
 /** Build a { [venueId]: { id, ...data } } map */
 export async function getVenuesMap() {
   const snap = await getDocs(collection(db, 'venues'));
@@ -195,4 +196,64 @@ export async function publishEvent(eventId) {
 export async function getEventById(id) {
   const snap = await getDoc(doc(db, 'events', id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/** ---------- Categories ---------- */
+export async function listCategories() {
+  const snap = await getDocs(collection(db, 'categories'));
+  const list = [];
+  snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+  // sort by name for nicer UX
+  return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+/** Create category iff slug-id is free (prevents duplicates). */
+export async function createCategoryIfUnique(name) {
+  const slug = slugify(name || '');
+  if (!slug) throw new Error('Category name is empty.');
+
+  const ref = doc(db, 'categories', slug);
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    return { id: existing.id, ...existing.data(), _existing: true };
+  }
+  const data = { name: name.trim(), slug };
+  await setDoc(ref, data);
+  return { id: slug, ...data, _existing: false };
+}
+
+/** ---------- Venues ---------- */
+export async function listVenues() {
+  const snap = await getDocs(collection(db, 'venues'));
+  const list = [];
+  snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+  return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+/** Create venue if name (case-insensitive) not used; address may duplicate. */
+export async function createVenueIfUnique({ name, address }) {
+  const nameLc = (name || '').trim().toLowerCase();
+  if (!nameLc) throw new Error('Venue name is required.');
+
+  const qy = query(collection(db, 'venues'), where('name_lc', '==', nameLc));
+  const snap = await getDocs(qy);
+  if (!snap.empty) {
+    const d = snap.docs[0];
+    return { id: d.id, ...d.data(), _existing: true };
+  }
+
+  const ref = await addDoc(collection(db, 'venues'), {
+    name: name.trim(),
+    name_lc: nameLc,
+    address: address?.line1 || '',
+    city: address?.city || '',
+    country: address?.countryName || '',
+    lat: typeof address?.lat === 'number' ? address.lat : null,
+    lng: typeof address?.lng === 'number' ? address.lng : null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  const d = await getDoc(ref);
+  return { id: ref.id, ...d.data(), _existing: false };
 }

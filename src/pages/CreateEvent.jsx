@@ -1,387 +1,531 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+// src/pages/CreateEvent.jsx
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/useAuth';
 
 import { Heading } from '@/components/catalyst-ui-kit/heading';
-import { Field, Label } from '@/components/catalyst-ui-kit/fieldset';
-import { Input } from '@/components/catalyst-ui-kit/input';
-import { Select } from '@/components/catalyst-ui-kit/select';
-import { Textarea } from '@/components/catalyst-ui-kit/textarea';
+import { Text } from '@/components/catalyst-ui-kit/text';
 import { Button } from '@/components/catalyst-ui-kit/button';
-// import { Strong, Text, TextLink } from '@/components/catalyst-ui-kit/text';
+import {
+  Field,
+  Label,
+  Description,
+} from '@/components/catalyst-ui-kit/fieldset';
+import { Input } from '@/components/catalyst-ui-kit/input';
+import { Textarea } from '@/components/catalyst-ui-kit/textarea';
+import { Select } from '@/components/catalyst-ui-kit/select';
 
+import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import AlertPopup from '@/components/ui/AlertPopup';
 import Loading from '@/components/ui/Loading';
 
 import {
-  getVenuesMap,
+  listCategories,
+  createCategoryIfUnique,
+  listVenues,
+  createVenueIfUnique,
   createEventDraft,
-  updateEventFields,
   publishEvent,
-  getEventById, // for edit mode
 } from '@/services/api';
+import { Avatar } from '@/components/catalyst-ui-kit/avatar';
+import { Divider } from '@/components/catalyst-ui-kit/divider';
 
-/**
- * This file supports both create and edit.
- * If it's mounted on /events/new → "create" mode.
- * If you later mount it on /events/:id/edit and pass an :id param → "edit" mode.
- */
+const CURRENCIES = ['GBP', 'USD', 'EUR'];
+
 export default function CreateEvent() {
-  const { user } = useAuth();
+  const { user, initializing } = useAuth();
   const navigate = useNavigate();
-  const params = useParams();
-  const isEdit = Boolean(params?.id); // if you later route /events/:id/edit
 
-  const [venuesMap, setVenuesMap] = useState({});
+  // ---- base fields
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [aboutHtml, setAboutHtml] = useState('');
+  const [image, setImage] = useState('/images/events/placeholder.png');
+
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [capacity, setCapacity] = useState(0);
+
+  const [priceType, setPriceType] = useState('free'); // free | payWhatYouWant | fixed
+  const [price, setPrice] = useState(0);
+  const [currency, setCurrency] = useState('GBP');
+
+  const [organizerName, setOrganizerName] = useState('');
+  const [organizerWebsite, setOrganizerWebsite] = useState('');
+
+  // ---- category pick/create
+  const [categories, setCategories] = useState([]);
+  const [categoryId, setCategoryId] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  // ---- venue pick/create
+  const [venues, setVenues] = useState([]);
+  const [venueId, setVenueId] = useState('');
+  const [newVenueName, setNewVenueName] = useState('');
+  const [newVenueAddress, setNewVenueAddress] = useState(null);
+
+  // ---- UI state
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
-  // form state
-  const [values, setValues] = useState({
-    title: '',
-    description: '',
-    image: '',
-    startsAt: '',
-    endsAt: '',
-    venueId: '',
-    capacity: 0,
-    priceType: 'free', // free | fixed | payWhatYouWant
-    price: 0,
-    currency: 'USD',
-    organizerName: '',
-    organizerWebsite: '',
-    refundPolicy: '',
-  });
-
-  // alert
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
 
-  // bootstrap
   useEffect(() => {
-    let alive = true;
-    async function load() {
-      setLoading(true);
+    let ignore = false;
+    async function bootstrap() {
       try {
-        const vMap = await getVenuesMap();
-        if (!alive) return;
-        setVenuesMap(vMap);
-
-        if (isEdit && params.id) {
-          const ev = await getEventById(params.id);
-          if (!alive) return;
-          if (!ev) {
-            setAlertTitle('Not found');
-            setAlertMessage('This event does not exist.');
-            setIsAlertOpen(true);
-            return;
-          }
-          // Prefill
-          setValues((prev) => ({
-            ...prev,
-            title: ev.title || '',
-            description: ev.description || '',
-            image: ev.image || '',
-            startsAt: (ev.startsAt || '').replace('Z', ''), // if ISO with Z
-            endsAt: (ev.endsAt || '').replace('Z', ''),
-            venueId: ev.venueId || '',
-            capacity: ev.capacity ?? 0,
-            priceType: ev.priceType || 'free',
-            price: ev.price ?? 0,
-            currency: ev.currency || 'USD',
-            organizerName: ev.organizerName || '',
-            organizerWebsite: ev.organizerWebsite || '',
-            refundPolicy: ev.refundPolicy || '',
-          }));
-        }
+        const [cats, vens] = await Promise.all([
+          listCategories(),
+          listVenues(),
+        ]);
+        if (ignore) return;
+        setCategories(cats);
+        setVenues(vens);
       } catch (e) {
         setAlertTitle('Failed to load form');
         setAlertMessage(e?.message || 'Please try again.');
         setIsAlertOpen(true);
       } finally {
-        if (alive) setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }
-    load();
-    return () => {
-      alive = false;
+    bootstrap();
+    return () => (ignore = true);
+  }, []);
+
+  function buildPayload() {
+    return {
+      title: title.trim(),
+      description: description.trim(),
+      aboutHtml,
+      categoryId: categoryId || null,
+      // keep denormalized name for fast reads (your current schema)
+      categoryName: categories.find((c) => c.id === categoryId)?.name || '',
+      image: image.trim(),
+      startsAt: startsAt ? new Date(startsAt).toISOString() : null,
+      endsAt: endsAt ? new Date(endsAt).toISOString() : null,
+      capacity: Number(capacity) || 0,
+      priceType,
+      price: priceType === 'fixed' ? Number(price) || 0 : 0,
+      currency,
+      organizerName: organizerName.trim() || null,
+      organizerWebsite: organizerWebsite.trim() || null,
+      venueId: venueId || null,
+      ticketTypes: [], // MVP — can add an editor later
     };
-  }, [isEdit, params?.id]);
-
-  const venueOptions = useMemo(
-    () =>
-      Object.values(venuesMap).map((v) => ({ id: v.id, name: v.name || v.id })),
-    [venuesMap]
-  );
-
-  if (loading)
-    return <Loading label={isEdit ? 'Loading event…' : 'Loading…'} />;
-
-  function setField(name, val) {
-    setValues((v) => ({ ...v, [name]: val }));
   }
 
-  function validate() {
-    if (!values.title.trim()) return 'Title is required.';
-    if (!values.startsAt) return 'Start date/time is required.';
-    if (!values.endsAt) return 'End date/time is required.';
-    if (new Date(values.endsAt) <= new Date(values.startsAt))
-      return 'End must be after start.';
-    if (values.priceType === 'fixed' && (values.price ?? 0) < 0)
-      return 'Price must be ≥ 0.';
-    return null;
-  }
-
-  async function handleSaveDraft() {
-    const error = validate();
-    if (error) {
-      setAlertTitle('Validation error');
-      setAlertMessage(error);
-      setIsAlertOpen(true);
-      return;
-    }
-    setSaving(true);
+  async function onAddCategory(e) {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
     try {
-      if (!user?.uid) throw new Error('You must be signed in.');
-      // normalize ISO
-      const payload = {
-        ...values,
-        startsAt: new Date(values.startsAt).toISOString(),
-        endsAt: new Date(values.endsAt).toISOString(),
-      };
-      if (isEdit && params.id) {
-        await updateEventFields(params.id, {
-          ...payload,
-          publishStatus: 'draft',
-        });
-      } else {
-        await createEventDraft(user.uid, payload);
-      }
-      // success → go to My Events
-      navigate('/account/events', { replace: true });
-    } catch (e) {
-      setAlertTitle('Save failed');
-      setAlertMessage(e?.message || 'Could not save event.');
-      setIsAlertOpen(true);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handlePublish() {
-    const error = validate();
-    if (error) {
-      setAlertTitle('Validation error');
-      setAlertMessage(error);
-      setIsAlertOpen(true);
-      return;
-    }
-    setSaving(true);
-    try {
-      if (!user?.uid) throw new Error('You must be signed in.');
-      // 1) Save fields (and force draft in case of new/dirty edits)
-      const payload = {
-        ...values,
-        startsAt: new Date(values.startsAt).toISOString(),
-        endsAt: new Date(values.endsAt).toISOString(),
-      };
-      let id = params.id;
-      if (isEdit && id) {
-        await updateEventFields(id, { ...payload, publishStatus: 'draft' });
-      } else {
-        const created = await createEventDraft(user.uid, payload);
-        id = created.id;
-      }
-      // 2) Publish via callable → sets moderationStatus: 'pending'
-      await publishEvent(id);
-
-      setAlertTitle('Submitted for review');
-      setAlertMessage(
-        'Your event was published and sent to staff for approval. It will appear publicly once approved.'
+      const cat = await createCategoryIfUnique(newCategoryName.trim());
+      setCategories((prev) =>
+        [...prev.filter((c) => c.id !== cat.id), cat].sort((a, b) =>
+          (a.name || '').localeCompare(b.name || '')
+        )
       );
-      setIsAlertOpen(true);
-      // After OK, send them to My Events
+      setCategoryId(cat.id);
+      setNewCategoryName('');
     } catch (e) {
-      setAlertTitle('Publish failed');
-      setAlertMessage(e?.message || 'Could not publish event.');
+      setAlertTitle('Could not add category');
+      setAlertMessage(e?.message || 'Try again.');
+      setIsAlertOpen(true);
+    }
+  }
+
+  async function onAddVenue(e) {
+    e.preventDefault();
+    if (!newVenueName.trim()) return;
+    try {
+      const ven = await createVenueIfUnique({
+        name: newVenueName.trim(),
+        address: newVenueAddress,
+      });
+      setVenues((prev) =>
+        [...prev.filter((v) => v.id !== ven.id), ven].sort((a, b) =>
+          (a.name || '').localeCompare(b.name || '')
+        )
+      );
+      setVenueId(ven.id);
+      setNewVenueName('');
+      setNewVenueAddress(null);
+    } catch (e) {
+      setAlertTitle('Could not add venue');
+      setAlertMessage(e?.message || 'Try again.');
+      setIsAlertOpen(true);
+    }
+  }
+
+  async function handleSaveDraft(e) {
+    e.preventDefault();
+    if (!user?.uid) return;
+
+    // simple validation
+    if (!title.trim()) {
+      setAlertTitle('Missing title');
+      setAlertMessage('Please enter a title.');
+      setIsAlertOpen(true);
+      return;
+    }
+    if (!startsAt || !endsAt) {
+      setAlertTitle('Missing dates');
+      setAlertMessage('Please select both start and end date/time.');
+      setIsAlertOpen(true);
+      return;
+    }
+    if (priceType === 'fixed' && (Number(price) || 0) < 0) {
+      setAlertTitle('Invalid price');
+      setAlertMessage('Price must be 0 or more.');
+      setIsAlertOpen(true);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = buildPayload();
+      const ev = await createEventDraft(user.uid, payload);
+      setAlertTitle('Draft saved');
+      setAlertMessage('Your event has been saved as a draft.');
+      setIsAlertOpen(true);
+      navigate(`/events/${ev.id}/edit`, { replace: true });
+    } catch (err) {
+      setAlertTitle('Save failed');
+      setAlertMessage(err?.message || 'Please try again.');
       setIsAlertOpen(true);
     } finally {
       setSaving(false);
     }
   }
+
+  async function handlePublish(e) {
+    e.preventDefault();
+    if (!user?.uid) return;
+
+    // same validation as save
+    if (!title.trim() || !startsAt || !endsAt) {
+      setAlertTitle('Incomplete form');
+      setAlertMessage('Title, start and end date/time are required.');
+      setIsAlertOpen(true);
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      // Create draft first (so we have an eventId), then call server publish
+      const payload = buildPayload();
+      const ev = await createEventDraft(user.uid, payload);
+      await publishEvent(ev.id); // Cloud Function sets moderationStatus='pending'
+      setAlertTitle('Submitted for review');
+      setAlertMessage('Your event is published and pending staff approval.');
+      setIsAlertOpen(true);
+      navigate(`/events/${ev.id}/edit`, { replace: true });
+    } catch (err) {
+      setAlertTitle('Publish failed');
+      setAlertMessage(err?.message || 'Please try again.');
+      setIsAlertOpen(true);
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  if (initializing || loading) return <Loading label='Loading…' />;
 
   return (
     <>
-      <div className='max-w-3xl'>
-        <Heading>{isEdit ? 'Edit event' : 'Create event'}</Heading>
+      <form className='space-y-12' onSubmit={handleSaveDraft} noValidate>
+        <section className='border-b border-white/10 pb-10'>
+          <Heading>Create event</Heading>
+          <Text>Save a draft or publish for staff moderation.</Text>
 
-        <div className='mt-8 grid grid-cols-1 gap-6'>
-          <Field>
-            <Label>Title</Label>
-            <Input
-              name='title'
-              value={values.title}
-              onChange={(e) => setField('title', e.target.value)}
-              required
-            />
-          </Field>
+          <div className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-6'>
+            {/* Title */}
+            <div className='col-span-full'>
+              <Field>
+                <Label>Title</Label>
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  required
+                />
+              </Field>
+            </div>
+            {/* Media */}
+            <div className='sm:col-span-1'>
+              <Avatar src={image} className='size-30' />
+            </div>
+            <div className='sm:col-span-5'>
+              <Field>
+                <Label>Cover image URL</Label>
+                <Input
+                  type='url'
+                  value={image}
+                  onChange={(e) => setImage(e.target.value)}
+                />
+                <Description>
+                  URL of an image to represent your event (optional).
+                  Recommended size: 1200x600px. PNG or JPG format.
+                </Description>
+              </Field>
+            </div>
 
-          <Field>
-            <Label>Description</Label>
-            <Textarea
-              name='description'
-              rows={6}
-              value={values.description}
-              onChange={(e) => setField('description', e.target.value)}
-            />
-          </Field>
+            {/* Description / About */}
+            <div className='sm:col-span-2'>
+              <Field>
+                <Label>Short description</Label>
+                <Description>
+                  A brief summary shown in event listings.
+                </Description>
+                <Textarea
+                  rows={5}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Field>
+            </div>
+            <div className='sm:col-span-4'>
+              <Field>
+                <Label>About (HTML allowed)</Label>
+                <Description>
+                  Plain HTML accepted (no scripts). Keep it short and sweet.
+                </Description>
+                <Textarea
+                  rows={5}
+                  value={aboutHtml}
+                  onChange={(e) => setAboutHtml(e.target.value)}
+                />
+              </Field>
+            </div>
 
-          <div className='grid gap-6 sm:grid-cols-2'>
-            <Field>
-              <Label>Starts at</Label>
-              <Input
-                type='datetime-local'
-                value={values.startsAt}
-                onChange={(e) => setField('startsAt', e.target.value)}
-                required
+            <Divider className='col-span-full mt-4' />
+
+            {/* Category select + add */}
+            <div className='sm:col-span-4'>
+              <div className='col-span-full'>
+                <Field>
+                  <Label>Category</Label>
+                  <Select
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                  >
+                    <option value=''>— Choose —</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <div className='col-span-full mt-4'>
+                <Field>
+                  <Label>Add a new category</Label>
+                  <div className='flex mt-3 gap-4'>
+                    <Input
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder='e.g., Meetups'
+                      className='flex-1'
+                    />
+                    <Button
+                      type='button'
+                      onClick={onAddCategory}
+                      className='shrink-0 sm:w-32'
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </Field>
+              </div>
+            </div>
+
+            {/* Dates */}
+            <div className='sm:col-span-2'>
+              <div className='col-span-full'>
+                <Field>
+                  <Label>Starts at</Label>
+                  <Input
+                    type='datetime-local'
+                    value={startsAt}
+                    onChange={(e) => setStartsAt(e.target.value)}
+                    required
+                  />
+                </Field>
+              </div>
+              <div className='col-span-full mt-4'>
+                <Field>
+                  <Label>Ends at</Label>
+                  <Input
+                    type='datetime-local'
+                    value={endsAt}
+                    onChange={(e) => setEndsAt(e.target.value)}
+                    required
+                  />
+                </Field>
+              </div>
+            </div>
+
+            <Divider className='col-span-full mt-4' />
+
+            {/* Capacity */}
+            <div className='sm:col-span-2'>
+              <Field>
+                <Label>Capacity</Label>
+                <Input
+                  type='number'
+                  min={0}
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                />
+              </Field>
+            </div>
+
+            {/* Pricing */}
+            <div className='sm:col-span-2'>
+              <Field>
+                <Label>Price type</Label>
+                <Select
+                  value={priceType}
+                  onChange={(e) => setPriceType(e.target.value)}
+                >
+                  <option value='free'>Free</option>
+                  <option value='payWhatYouWant'>Pay what you want</option>
+                  <option value='fixed'>Fixed price</option>
+                </Select>
+              </Field>
+            </div>
+            <div className='sm:col-span-1'>
+              <Field>
+                <Label>Price</Label>
+                <Input
+                  type='number'
+                  min={0}
+                  step='0.01'
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  disabled={priceType !== 'fixed'}
+                />
+              </Field>
+            </div>
+            <div className='sm:col-span-1'>
+              <Field>
+                <Label>Currency</Label>
+                <Select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  disabled={priceType === 'free'}
+                >
+                  {CURRENCIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+
+            <Divider className='col-span-full mt-4' />
+
+            {/* Organizer */}
+            <div className='sm:col-span-3'>
+              <div className='col-span-full'>
+                <Field>
+                  <Label>Organizer name</Label>
+                  <Input
+                    value={organizerName}
+                    onChange={(e) => setOrganizerName(e.target.value)}
+                  />
+                </Field>
+              </div>
+              <div className='col-span-full mt-4'>
+                <Field>
+                  <Label>Organizer website</Label>
+                  <Input
+                    type='url'
+                    value={organizerWebsite}
+                    onChange={(e) => setOrganizerWebsite(e.target.value)}
+                  />
+                </Field>
+              </div>
+            </div>
+
+            {/* Venue select/create */}
+            <div className='sm:col-span-3'>
+              <div className='col-span-full'>
+                <Field>
+                  <Label>Venue</Label>
+                  <Select
+                    value={venueId}
+                    onChange={(e) => setVenueId(e.target.value)}
+                  >
+                    <option value=''>— Choose —</option>
+                    {venues.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                        {v.city ? ` (${v.city})` : ''}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <div className='col-span-full mt-4'>
+                <Field>
+                  <Label>Create a new venue</Label>
+                  <div className='flex mt-3 gap-4'>
+                    <Input
+                      value={newVenueName}
+                      onChange={(e) => setNewVenueName(e.target.value)}
+                      placeholder='Venue name'
+                    />
+                    <Button
+                      type='button'
+                      onClick={onAddVenue}
+                      className='shrink-0'
+                    >
+                      Add venue
+                    </Button>
+                  </div>
+                </Field>
+              </div>
+            </div>
+            <div className='col-span-full'>
+              <AddressAutocomplete
+                value={newVenueAddress}
+                onChange={setNewVenueAddress}
+                label='Venue address'
               />
-            </Field>
-            <Field>
-              <Label>Ends at</Label>
-              <Input
-                type='datetime-local'
-                value={values.endsAt}
-                onChange={(e) => setField('endsAt', e.target.value)}
-                required
-              />
-            </Field>
+            </div>
           </div>
+        </section>
 
-          <div className='grid gap-6 sm:grid-cols-2'>
-            <Field>
-              <Label>Venue</Label>
-              <Select
-                value={values.venueId}
-                onChange={(e) => setField('venueId', e.target.value)}
-              >
-                <option value=''>— Select a venue —</option>
-                {venueOptions.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-
-            <Field>
-              <Label>Capacity</Label>
-              <Input
-                type='number'
-                min={0}
-                value={values.capacity}
-                onChange={(e) =>
-                  setField('capacity', Number(e.target.value || 0))
-                }
-              />
-            </Field>
-          </div>
-
-          <div className='grid gap-6 sm:grid-cols-3'>
-            <Field>
-              <Label>Price type</Label>
-              <Select
-                value={values.priceType}
-                onChange={(e) => setField('priceType', e.target.value)}
-              >
-                <option value='free'>Free</option>
-                <option value='fixed'>Fixed price</option>
-                <option value='payWhatYouWant'>Pay what you want</option>
-              </Select>
-            </Field>
-
-            <Field>
-              <Label>Price (if fixed)</Label>
-              <Input
-                type='number'
-                min={0}
-                step='0.01'
-                value={values.price}
-                onChange={(e) => setField('price', Number(e.target.value || 0))}
-                disabled={values.priceType !== 'fixed'}
-              />
-            </Field>
-
-            <Field>
-              <Label>Currency</Label>
-              <Input
-                value={values.currency}
-                onChange={(e) =>
-                  setField('currency', e.target.value.toUpperCase())
-                }
-              />
-            </Field>
-          </div>
-
-          <Field>
-            <Label>Header image URL</Label>
-            <Input
-              value={values.image}
-              onChange={(e) => setField('image', e.target.value)}
-              placeholder='/images/events/sample.jpg'
-            />
-          </Field>
-
-          <div className='grid gap-6 sm:grid-cols-2'>
-            <Field>
-              <Label>Organizer name</Label>
-              <Input
-                value={values.organizerName}
-                onChange={(e) => setField('organizerName', e.target.value)}
-              />
-            </Field>
-            <Field>
-              <Label>Organizer website</Label>
-              <Input
-                value={values.organizerWebsite}
-                onChange={(e) => setField('organizerWebsite', e.target.value)}
-                placeholder='https://…'
-              />
-            </Field>
-          </div>
-
-          <Field>
-            <Label>Refund policy</Label>
-            <Input
-              value={values.refundPolicy}
-              onChange={(e) => setField('refundPolicy', e.target.value)}
-              placeholder="e.g. 'Free RSVP — cancel if you can’t attend.'"
-            />
-          </Field>
-
-          <div className='mt-6 flex flex-wrap gap-3'>
-            <Button color='zinc' onClick={handleSaveDraft} disabled={saving}>
-              {saving ? 'Saving…' : 'Save draft'}
-            </Button>
-            <Button color='indigo' onClick={handlePublish} disabled={saving}>
-              {saving ? 'Publishing…' : 'Publish (send to review)'}
-            </Button>
-            <Button plain href='/account/events'>
-              Cancel
-            </Button>
-          </div>
+        <div className='mt-2 flex items-center justify-end gap-x-3'>
+          <Button plain type='button' onClick={() => navigate(-1)}>
+            Cancel
+          </Button>
+          <Button color='zinc' type='submit' disabled={saving || publishing}>
+            {saving ? 'Saving…' : 'Save draft'}
+          </Button>
+          <Button
+            color='indigo'
+            type='button'
+            onClick={handlePublish}
+            disabled={saving || publishing}
+          >
+            {publishing ? 'Publishing…' : 'Publish for review'}
+          </Button>
         </div>
-      </div>
+      </form>
+
+      {(saving || publishing) && (
+        <Loading label={saving ? 'Saving…' : 'Publishing…'} />
+      )}
 
       <AlertPopup
         isOpen={isAlertOpen}
-        setIsOpen={(open) => {
-          // if success publish message, on close redirect
-          if (!open && alertTitle === 'Submitted for review') {
-            navigate('/account/events', { replace: true });
-          }
-          setIsAlertOpen(open);
-        }}
+        setIsOpen={setIsAlertOpen}
         title={alertTitle}
         description={alertMessage}
         confirmText='OK'
