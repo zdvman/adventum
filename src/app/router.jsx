@@ -26,6 +26,7 @@ import EventsIndexStaff from '@/pages/EventsIndexStaff';
 import UsersIndexStaff from '@/pages/UsersIndexStaff';
 import VenuesIndexStaff from '@/pages/VenuesIndexStaff';
 import CategoriesIndexStaff from '@/pages/CategoriesIndexStaff';
+import EditEvent from '@/pages/EditEvent';
 
 export const router = createBrowserRouter([
   {
@@ -43,6 +44,15 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth>
             <CreateEvent />
+          </RequireAuth>
+        ),
+      },
+
+      {
+        path: '/events/:eventId/edit',
+        element: (
+          <RequireAuth>
+            <EditEvent />
           </RequireAuth>
         ),
       },

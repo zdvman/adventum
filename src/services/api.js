@@ -12,7 +12,7 @@ import {
   getDoc,
   updateDoc,
   addDoc,
-  setDoc,
+  limit,
 } from 'firebase/firestore';
 import {
   callStaffCascadeDeleteEvent,
@@ -20,8 +20,10 @@ import {
   callStaffDeleteUserCascade,
   getRole,
   callPublishEvent,
+  callSetPublishStatus,
 } from '@/services/cloudFunctions';
 import { slugify } from '@/utils/slug';
+
 /** Build a { [venueId]: { id, ...data } } map */
 export async function getVenuesMap() {
   const snap = await getDocs(collection(db, 'venues'));
@@ -132,7 +134,6 @@ export async function staffDeleteUserCascade(userId) {
   return await callStaffDeleteUserCascade(userId);
 }
 
-/** Staff approve / reject (also bump updatedAt / moderatedAt) */
 export async function staffApproveEvent(eventId) {
   const ref = doc(db, 'events', eventId);
   await updateDoc(ref, {
@@ -147,8 +148,6 @@ export async function staffRejectEvent(eventId) {
   await updateDoc(ref, {
     moderationStatus: 'rejected',
     moderatedAt: new Date().toISOString(),
-    // Typically rejected events should NOT be public; keep publishStatus as-is, or force draft if you prefer
-    // publishStatus: 'draft',
     updatedAt: new Date().toISOString(),
   });
 }
@@ -160,66 +159,91 @@ export async function isStaffUser(uid) {
 export async function createEventDraft(uid, payload) {
   const now = new Date().toISOString();
   const base = {
-    // permissions/ownership
     createdBy: uid,
-    // lifecycle
-    publishStatus: 'draft',
-    moderationStatus: 'pending', // harmless while draft; will be re-set on publish
+    publishStatus: 'draft', // draft only
+    moderationStatus: null, // <- NOT pending for drafts
     createdAt: now,
     updatedAt: now,
-    // sane defaults
     ticketsSold: 0,
     capacity: payload.capacity ?? 0,
   };
   const ref = await addDoc(collection(db, 'events'), { ...payload, ...base });
-  // Return freshly read copy so caller has all server defaults
   const snap = await getDocFromServer(doc(db, 'events', ref.id));
   return { id: ref.id, ...snap.data() };
 }
 
-// --- NEW: update draft/fields (creator or staff, rules enforce) ---
-export async function updateEventFields(eventId, partial) {
-  await updateDoc(doc(db, 'events', eventId), {
+// Update fields; optionally force draft while keeping moderationStatus unchanged
+export async function updateEventFields(eventId, partial, opts = {}) {
+  const { keepPublished = true } = opts;
+  const update = {
     ...partial,
     updatedAt: new Date().toISOString(),
-  });
+  };
+  if (!keepPublished) {
+    update.publishStatus = 'draft';
+    // DO NOT touch moderationStatus (per requirement)
+  }
+  await updateDoc(doc(db, 'events', eventId), update);
   const snap = await getDoc(doc(db, 'events', eventId));
   return { id: eventId, ...snap.data() };
 }
 
-// --- NEW: publish (server will set moderationStatus: 'pending') ---
 export async function publishEvent(eventId) {
   return await callPublishEvent(eventId);
 }
 
-// (optional) fetch for edit prefill (cache OK)
+// Toggle publish via Cloud Function so moderation is computed server-side
+export async function setPublishStatus(eventId, isPublished) {
+  const res = await callSetPublishStatus(eventId, !!isPublished);
+  // Cloud Function returns: { publishStatus, moderationStatus }
+  return {
+    ok: true,
+    publishStatus: res.publishStatus,
+    moderationStatus: res.moderationStatus ?? null,
+  };
+}
+
 export async function getEventById(id) {
   const snap = await getDoc(doc(db, 'events', id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-/** ---------- Categories ---------- */
+/** ---------- Categories (auto-ID, de-duped by slug) ---------- */
 export async function listCategories() {
   const snap = await getDocs(collection(db, 'categories'));
-  const list = [];
-  snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-  // sort by name for nicer UX
+  const bySlug = new Map();
+  snap.forEach((d) => {
+    const data = { id: d.id, ...d.data() };
+    const k = (data.slug || '').trim().toLowerCase();
+    if (k && !bySlug.has(k)) bySlug.set(k, data);
+  });
+  const list = Array.from(bySlug.values());
   return list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 }
 
-/** Create category iff slug-id is free (prevents duplicates). */
 export async function createCategoryIfUnique(name) {
-  const slug = slugify(name || '');
+  const trimmed = (name || '').trim();
+  const slug = slugify(trimmed);
   if (!slug) throw new Error('Category name is empty.');
 
-  const ref = doc(db, 'categories', slug);
-  const existing = await getDoc(ref);
-  if (existing.exists()) {
-    return { id: existing.id, ...existing.data(), _existing: true };
+  const qy = query(collection(db, 'categories'), where('slug', '==', slug));
+  const snap = await getDocs(qy);
+  if (!snap.empty) {
+    const d = snap.docs[0];
+    return { id: d.id, ...d.data(), _existing: true };
   }
-  const data = { name: name.trim(), slug };
-  await setDoc(ref, data);
-  return { id: slug, ...data, _existing: false };
+
+  const now = new Date().toISOString();
+  const ref = await addDoc(collection(db, 'categories'), {
+    name: trimmed,
+    slug,
+    name_lc: trimmed.toLowerCase(),
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const d = await getDoc(ref);
+  return { id: ref.id, ...d.data(), _existing: false };
 }
 
 /** ---------- Venues ---------- */
@@ -256,4 +280,34 @@ export async function createVenueIfUnique({ name, address }) {
 
   const d = await getDoc(ref);
   return { id: ref.id, ...d.data(), _existing: false };
+}
+
+export async function listPublicEvents({ limitTo = 50 } = {}) {
+  const q = query(
+    collection(db, 'events'),
+    where('publishStatus', '==', 'published'),
+    where('moderationStatus', '==', 'approved'),
+    orderBy('startsAt', 'asc'),
+    limit(limitTo)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function getEventForPublic(eventId, currentUserId = null) {
+  const ref = doc(db, 'events', eventId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return null;
+  const data = { id: snap.id, ...snap.data() };
+
+  // Public can see only approved+published
+  const isOwner = currentUserId && data.createdBy === currentUserId;
+  const staff = data.__viewerIsStaff === true; // or however you detect staff/admin
+  const isApprovedPublic =
+    data.publishStatus === 'published' && data.moderationStatus === 'approved';
+
+  if (isApprovedPublic || isOwner || staff) return data;
+
+  // otherwise hide
+  return null;
 }

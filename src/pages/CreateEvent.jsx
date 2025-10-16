@@ -222,7 +222,7 @@ export default function CreateEvent() {
       setAlertTitle('Submitted for review');
       setAlertMessage('Your event is published and pending staff approval.');
       setIsAlertOpen(true);
-      navigate(`/events/${ev.id}/edit`, { replace: true });
+      navigate(`/account/events`, { replace: true });
     } catch (err) {
       setAlertTitle('Publish failed');
       setAlertMessage(err?.message || 'Please try again.');
@@ -248,6 +248,7 @@ export default function CreateEvent() {
                 <Label>Title</Label>
                 <Input
                   value={title}
+                  type='text'
                   onChange={(e) => setTitle(e.target.value)}
                   required
                 />
@@ -282,6 +283,7 @@ export default function CreateEvent() {
                 <Textarea
                   rows={5}
                   value={description}
+                  type='text'
                   onChange={(e) => setDescription(e.target.value)}
                 />
               </Field>
@@ -295,6 +297,7 @@ export default function CreateEvent() {
                 <Textarea
                   rows={5}
                   value={aboutHtml}
+                  type='text'
                   onChange={(e) => setAboutHtml(e.target.value)}
                 />
               </Field>
@@ -483,7 +486,7 @@ export default function CreateEvent() {
                     <Button
                       type='button'
                       onClick={onAddVenue}
-                      className='shrink-0'
+                      className='shrink-0 sm:w-32'
                     >
                       Add venue
                     </Button>
@@ -505,7 +508,12 @@ export default function CreateEvent() {
           <Button plain type='button' onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button color='zinc' type='submit' disabled={saving || publishing}>
+          <Button
+            color='zinc'
+            type='submit'
+            disabled={saving || publishing}
+            className='shrink-0 sm:w-32'
+          >
             {saving ? 'Saving…' : 'Save draft'}
           </Button>
           <Button
