@@ -3,10 +3,37 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
+import crypto from 'crypto';
 
 // Initialize Admin SDK once (works with Admin v12+)
 if (!getApps().length) {
   initializeApp();
+}
+
+function computeContentHash(ev) {
+  // Only fields affecting moderation should be hashed
+  const parts = [
+    ev.title || '',
+    ev.description || '',
+    ev.aboutHtml || '',
+    ev.image || '',
+    ev.startsAt || '',
+    ev.endsAt || '',
+    String(ev.capacity ?? ''),
+    ev.priceType || '',
+    typeof ev.price === 'number' ? String(ev.price) : '',
+    ev.currency || '',
+    ev.organizerName || '',
+    ev.organizerWebsite || '',
+    ev.categoryId || '',
+    ev.categoryName || '',
+    ev.venueId || '',
+    // If you add ticketTypes later and want them moderated, include a stable serialization here.
+  ];
+  return crypto
+    .createHash('md5')
+    .update(parts.join('||'), 'utf8')
+    .digest('hex');
 }
 
 /** Helper: read role */
@@ -204,7 +231,7 @@ export const creatorDeleteEventSafely = onCall(async (req) => {
   return { deleted: true };
 });
 
-// STAFF: set moderationStatus on an event
+// STAFF: set moderationStatus on an event (ALSO stamps approvedHash when approving)
 export const staffSetModerationStatus = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
@@ -223,19 +250,28 @@ export const staffSetModerationStatus = onCall(async (req) => {
   }
 
   const db = getFirestore();
-  await db
-    .collection('events')
-    .doc(eventId)
-    .update({
-      moderationStatus,
-      ...(reason ? { moderationReason: reason } : {}),
-      updatedAt: new Date(),
-    });
+  const ref = db.collection('events').doc(eventId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Event not found.');
+  const ev = snap.data();
 
+  const patch = {
+    moderationStatus,
+    updatedAt: new Date().toISOString(),
+  };
+  if (reason) patch.moderationReason = reason;
+
+  if (moderationStatus === 'approved') {
+    patch.approvedAt = new Date().toISOString();
+    patch.approvedHash = computeContentHash(ev); // snapshot what was approved
+  }
+
+  await ref.update(patch);
   return { ok: true };
 });
 
-// --- NEW: creator/staff publish action (safe server-side) ---
+// Backwards-compatible publish (always publish = true)
+// Keeps "pending" only if content changed since last approval; otherwise keeps approved.
 export const publishEvent = onCall(async (req) => {
   const uid = req.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
@@ -253,14 +289,89 @@ export const publishEvent = onCall(async (req) => {
   const ev = snap.data();
   const isOwner = ev.createdBy === uid;
   if (!(isOwner || isStaff))
-    throw new HttpsError('permission-denied', 'Not allowed to publish.');
+    throw new HttpsError('permission-denied', 'Not allowed.');
 
-  // Business rule: publish -> moderation = pending, bump timestamps
+  // Determine moderation
+  const currentHash = computeContentHash(ev);
+  let nextModeration = ev.moderationStatus || null;
+
+  if (ev.moderationStatus === 'approved') {
+    // Re-publishing an approved event → only go pending if content changed
+    if (ev.approvedHash && ev.approvedHash === currentHash) {
+      nextModeration = 'approved'; // keep
+    } else {
+      nextModeration = 'pending';
+    }
+  } else if (ev.moderationStatus === 'pending') {
+    // Already pending: keep pending
+    nextModeration = 'pending';
+  } else {
+    // never approved before → needs moderation
+    nextModeration = 'pending';
+  }
+
   await ref.update({
     publishStatus: 'published',
-    moderationStatus: 'pending',
+    moderationStatus: nextModeration,
+    submittedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
 
-  return { published: true };
+  return { published: true, moderationStatus: nextModeration };
+});
+
+// Explicit toggle publish on/off without forcing pending if unchanged content
+export const setPublishStatus = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const { eventId, publish } = req.data || {};
+  if (!eventId || typeof publish !== 'boolean') {
+    throw new HttpsError('invalid-argument', 'Missing eventId/publish.');
+  }
+
+  const db = getFirestore();
+  const role = await readRole(uid);
+  const isStaff = role === 'staff';
+
+  const ref = db.collection('events').doc(eventId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Event not found.');
+
+  const ev = snap.data();
+  const isOwner = ev.createdBy === uid;
+  if (!(isOwner || isStaff))
+    throw new HttpsError('permission-denied', 'Not allowed.');
+
+  if (!publish) {
+    // Unpublish → do NOT touch moderationStatus
+    await ref.update({
+      publishStatus: 'draft',
+      updatedAt: new Date().toISOString(),
+    });
+    return {
+      publishStatus: 'draft',
+      moderationStatus: ev.moderationStatus ?? null,
+    };
+  }
+
+  // publish == true
+  const currentHash = computeContentHash(ev);
+
+  let nextModeration;
+  if (ev.moderationStatus === 'approved' && ev.approvedHash === currentHash) {
+    nextModeration = 'approved'; // unchanged, keep approved
+  } else if (ev.moderationStatus === 'pending') {
+    nextModeration = 'pending'; // already submitted
+  } else {
+    nextModeration = 'pending'; // first submission OR changed since last approval
+  }
+
+  await ref.update({
+    publishStatus: 'published',
+    moderationStatus: nextModeration,
+    submittedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  return { publishStatus: 'published', moderationStatus: nextModeration };
 });

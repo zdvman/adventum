@@ -138,7 +138,7 @@ export default function EventsIndex() {
                   <Link href={`/events/${idSlug}`} aria-hidden='true'>
                     <img
                       className='aspect-3/2 rounded-lg shadow-sm'
-                      src={ev.image}
+                      src={ev.image || '/images/events/placeholder.png'}
                       alt={ev.title}
                     />
                   </Link>

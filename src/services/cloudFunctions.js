@@ -40,11 +40,17 @@ export async function callStaffSetModerationStatus(
 export async function getRole(uid) {
   const fn = httpsCallable(functions, 'getRole');
   const { data } = await fn({ uid });
-  return data.role; // 'member' | 'staff'
+  return data.role;
 }
 
 export async function callPublishEvent(eventId) {
   const fn = httpsCallable(functions, 'publishEvent');
   const res = await fn({ eventId });
-  return res.data;
+  return res.data; // { published: true, moderationStatus }
+}
+
+export async function callSetPublishStatus(eventId, publish) {
+  const fn = httpsCallable(functions, 'setPublishStatus');
+  const res = await fn({ eventId, publish });
+  return res.data; // { publishStatus, moderationStatus }
 }
