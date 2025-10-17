@@ -175,7 +175,7 @@ export const router = createBrowserRouter([
       {
         path: '/checkout',
         children: [
-          { path: ':idSlug', element: <CheckoutStart /> },
+          { path: ':eventId', element: <CheckoutStart /> },
           { path: 'success', element: <CheckoutSuccess /> },
           { path: 'cancel', element: <CheckoutCancel /> },
         ],

@@ -72,3 +72,11 @@ export async function callStaffBackfillProfileEmails() {
   const { data } = await fn();
   return data; // { ok, updated }
 }
+
+// === STRIPE: create a Checkout Session (client wrapper) ===
+export async function callCreateCheckoutSession({ eventId, quantity = 1 }) {
+  const fn = httpsCallable(functions, 'createCheckoutSession');
+  const { data } = await fn({ eventId, quantity });
+  // data is { url }
+  return data;
+}

@@ -316,7 +316,7 @@ export default function EventDetail() {
                     </div>
 
                     <Button
-                      href={`/checkout/${composeIdSlug(event.id, event.title)}`}
+                      href={`/checkout/${event.id}`}
                       color='indigo'
                       className='mt-4 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 font-medium'
                       disabled={!showSale || !onSale}
