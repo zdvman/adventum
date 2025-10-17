@@ -27,6 +27,8 @@ import UsersIndexStaff from '@/pages/UsersIndexStaff';
 import VenuesIndexStaff from '@/pages/VenuesIndexStaff';
 import CategoriesIndexStaff from '@/pages/CategoriesIndexStaff';
 import EditEvent from '@/pages/EditEvent';
+import UserEditStaff from '@/pages/UserEditStaff';
+import SeedProfileEmails from '@/pages/SeedProfileEmails';
 
 export const router = createBrowserRouter([
   {
@@ -95,6 +97,17 @@ export const router = createBrowserRouter([
               </RequireAuth>
             ),
           },
+          {
+            path: '/staff/users/:userId/edit',
+            element: (
+              <RequireAuth>
+                <RequireStaff>
+                  <UserEditStaff />
+                </RequireStaff>
+              </RequireAuth>
+            ),
+          },
+
           {
             path: 'venues',
             element: (
@@ -170,6 +183,7 @@ export const router = createBrowserRouter([
 
       // Misc
       { path: '/dev/seed', element: <DevSeed /> },
+      { path: '/dev/seed/profiles', element: <SeedProfileEmails /> },
       { path: '/404', element: <NotFound /> },
       { path: '*', element: <NotFound /> },
     ],

@@ -54,3 +54,21 @@ export async function callSetPublishStatus(eventId, publish) {
   const res = await fn({ eventId, publish });
   return res.data; // { publishStatus, moderationStatus }
 }
+
+export async function callStaffSetUserRole(userId, role) {
+  const fn = httpsCallable(functions, 'staffSetUserRole');
+  const { data } = await fn({ userId, role });
+  return data; // { ok, role }
+}
+
+export async function callStaffSetUserBlocked(userId, blocked) {
+  const fn = httpsCallable(functions, 'staffSetUserBlocked');
+  const { data } = await fn({ userId, blocked });
+  return data; // { ok, blocked }
+}
+
+export async function callStaffBackfillProfileEmails() {
+  const fn = httpsCallable(functions, 'staffBackfillProfileEmails');
+  const { data } = await fn();
+  return data; // { ok, updated }
+}

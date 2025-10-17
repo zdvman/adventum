@@ -39,6 +39,8 @@ import {
   getVenuesMap,
   subscribeAllEventsForStaff,
   sortStaffEvents,
+  sortStaffEventsNewest,
+  subscribeAllProfilesForStaff,
   deleteEventAsStaff,
   staffApproveEvent,
   staffRejectEvent,
@@ -50,7 +52,11 @@ export default function EventsIndexStaff() {
 
   const [events, setEvents] = useState([]);
   const [venuesMap, setVenuesMap] = useState({});
+  const [profilesMap, setProfilesMap] = useState({}); // creator lookup (username/email/name)
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState('');
+  const [searchBy, setSearchBy] = useState('any'); // any|title|creator|id|date
+  const [sortBy, setSortBy] = useState('pending_oldest'); // pending_oldest|pending_newest
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
@@ -69,14 +75,24 @@ export default function EventsIndexStaff() {
         if (ignore) return;
         setVenuesMap(vMap);
 
-        const unsub = subscribeAllEventsForStaff((list) => {
-          // sort on every snapshot
-          list.sort(sortStaffEvents);
+        const unsubEvents = subscribeAllEventsForStaff((list) => {
+          // keep raw; we'll sort based on UI
           setEvents(list);
           setLoading(false);
         });
 
-        return unsub;
+        // creators (profiles) for searching by creator username/email/name
+        const unsubProfiles = subscribeAllProfilesForStaff((list) => {
+          if (ignore) return;
+          const map = {};
+          list.forEach((p) => (map[p.id] = p));
+          setProfilesMap(map);
+        });
+
+        return () => {
+          if (typeof unsubEvents === 'function') unsubEvents();
+          if (typeof unsubProfiles === 'function') unsubProfiles();
+        };
       } catch (e) {
         console.error(e);
         if (!ignore) {
@@ -101,8 +117,89 @@ export default function EventsIndexStaff() {
     };
   }, [isStaff, reloadTick]);
 
+  function lc(v) {
+    return (v == null ? '' : String(v)).toLowerCase();
+  }
+
+  // true if ev.startsAt is the same calendar day as typed term (YYYY-MM-DD or any parseable date)
+  function isSameDay(evStartsAt, term) {
+    if (!term) return false;
+    const t = Date.parse(term);
+    if (Number.isNaN(t)) return false;
+    const d1 = new Date(evStartsAt);
+    const d2 = new Date(t);
+    return (
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate()
+    );
+  }
+
+  const searchPlaceholder =
+    searchBy === 'title'
+      ? 'Search by title…'
+      : searchBy === 'creator'
+      ? 'Creator (uid, username, email, name)…'
+      : searchBy === 'id'
+      ? 'Search by event ID…'
+      : searchBy === 'date'
+      ? 'Start date (e.g. 2025-10-16)…'
+      : 'Search events…';
+
   const rows = useMemo(() => {
-    return events.map((ev) => {
+    const term = lc(q.trim());
+
+    // 1) filter
+    const filtered = events.filter((ev) => {
+      if (!term) return true;
+
+      const idHay = lc(ev.id);
+      const titleHay = lc(ev.title);
+      const creatorUid = lc(ev.createdBy);
+      const creator = profilesMap[ev.createdBy];
+      const creatorUsername = lc(creator?.username);
+      const creatorEmail = lc(creator?.email);
+      const creatorName = lc(
+        [creator?.firstName, creator?.lastName].filter(Boolean).join(' ')
+      );
+
+      switch (searchBy) {
+        case 'title':
+          return titleHay.includes(term);
+        case 'creator':
+          // match uid, username, email, or name
+          return (
+            creatorUid.includes(term) ||
+            creatorUsername.includes(term) ||
+            creatorEmail.includes(term) ||
+            creatorName.includes(term)
+          );
+        case 'id':
+          return idHay.includes(term);
+        case 'date':
+          return isSameDay(ev.startsAt, term);
+        default: {
+          // any
+          return (
+            titleHay.includes(term) ||
+            idHay.includes(term) ||
+            creatorUid.includes(term) ||
+            creatorUsername.includes(term) ||
+            creatorEmail.includes(term) ||
+            creatorName.includes(term)
+          );
+        }
+      }
+    });
+
+    // 2) sort
+    const sorted =
+      sortBy === 'pending_newest'
+        ? [...filtered].sort(sortStaffEventsNewest)
+        : [...filtered].sort(sortStaffEvents);
+
+    // 3) map to view model
+    return sorted.map((ev) => {
       const venue = venuesMap[ev.venueId];
       const ticketsAvailable = ticketsRemaining(ev);
       const showSale = shouldShowSaleBadgeInMyEvents(ev);
@@ -127,7 +224,7 @@ export default function EventsIndexStaff() {
         canReject,
       };
     });
-  }, [events, venuesMap]);
+  }, [events, venuesMap, profilesMap, q, searchBy, sortBy]);
 
   async function handleDelete(ev) {
     const ok = confirm(
@@ -224,17 +321,39 @@ export default function EventsIndexStaff() {
       <div className='flex flex-wrap items-end justify-between gap-4'>
         <div className='max-sm:w-full sm:flex-1'>
           <Heading>All events (staff)</Heading>
-          <div className='mt-4 flex max-w-xl gap-4'>
+          <div className='mt-4 flex max-w-3xl flex-wrap gap-4'>
             <div className='flex-1'>
               <InputGroup>
                 <MagnifyingGlassIcon />
-                <Input name='search' placeholder='Search events…' />
+                <Input
+                  name='search'
+                  placeholder={searchPlaceholder}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                />
               </InputGroup>
             </div>
             <div>
-              {/* Sorting is handled client-side; this select can be wired up later */}
-              <Select name='sort_by' defaultValue='pending_oldest' disabled>
+              <Select
+                name='search_by'
+                value={searchBy}
+                onChange={(e) => setSearchBy(e.target.value)}
+              >
+                <option value='any'>Search: Any</option>
+                <option value='title'>Title</option>
+                <option value='creator'>Creator</option>
+                <option value='id'>Event ID</option>
+                <option value='date'>Start date</option>
+              </Select>
+            </div>
+            <div>
+              <Select
+                name='sort_by'
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
                 <option value='pending_oldest'>Pending first (oldest)</option>
+                <option value='pending_newest'>Pending first (newest)</option>
               </Select>
             </div>
           </div>
