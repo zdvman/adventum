@@ -13,6 +13,7 @@
   "dependencies": {
     "@headlessui/react": "^2.2.8",
     "@heroicons/react": "^2.2.0",
+    "@stripe/stripe-js": "^8.1.0",
     "@tailwindcss/vite": "^4.1.13",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.2",
