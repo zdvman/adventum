@@ -50,6 +50,20 @@ export async function getPublicEvents() {
   return list;
 }
 
+/** Public catalogue: ALL approved + published (past + future), sorted by startsAt asc */
+export async function getPublicEventsAll() {
+  const qy = query(
+    collection(db, 'events'),
+    where('moderationStatus', '==', 'approved'),
+    where('publishStatus', '==', 'published'),
+    orderBy('startsAt', 'asc')
+  );
+  const snap = await getDocs(qy);
+  const list = [];
+  snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+  return list;
+}
+
 /** My events (creator view): all events created by me (drafts included) */
 export async function getMyEvents(uid) {
   const qy = query(

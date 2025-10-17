@@ -80,3 +80,28 @@ export function cheapestAvailableTicket(ev) {
 export function getTicketsAvailableNumber(ev) {
   return Math.max(0, (ev.capacity ?? 0) - (ev.ticketsSold ?? 0));
 }
+
+export function tsToNumber(x) {
+  if (!x) return 0;
+  if (typeof x === 'number') return x;
+  if (typeof x.toMillis === 'function') return x.toMillis(); // Firestore Timestamp
+  if (typeof x === 'string') {
+    const t = Date.parse(x);
+    return Number.isNaN(t) ? 0 : t;
+  }
+  if (x instanceof Date) return x.getTime();
+  return 0;
+}
+
+export const lc = (v) => (v == null ? '' : String(v)).toLowerCase();
+export function isSameDay(dateLike, term) {
+  const t = Date.parse(term);
+  if (Number.isNaN(t)) return false;
+  const d1 = new Date(dateLike);
+  const d2 = new Date(t);
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}

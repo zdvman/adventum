@@ -322,7 +322,7 @@ export default function EventsIndexStaff() {
         <div className='max-sm:w-full sm:flex-1'>
           <Heading>All events (staff)</Heading>
           <div className='mt-4 flex max-w-3xl flex-wrap gap-4'>
-            <div className='flex-1'>
+            <div className='min-w-[240px] flex-1'>
               <InputGroup>
                 <MagnifyingGlassIcon />
                 <Input
