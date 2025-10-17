@@ -5,9 +5,20 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import crypto from 'crypto';
 
+import Stripe from 'stripe';
+const STRIPE_SECRET =
+  process.env.STRIPE__SECRET || process.env.STRIPE_SECRET || '';
+const APP_ORIGIN = process.env.APP__ORIGIN || 'http://localhost:5173';
+
 // Initialize Admin SDK once (works with Admin v12+)
 if (!getApps().length) {
   initializeApp();
+}
+
+function ticketsRemaining(ev) {
+  const cap = Math.max(0, ev?.capacity ?? 0);
+  const sold = Math.max(0, ev?.ticketsSold ?? 0);
+  return Math.max(0, cap - sold);
 }
 
 function computeContentHash(ev) {
@@ -471,4 +482,90 @@ export const staffBackfillProfileEmails = onCall(async (req) => {
   } while (token);
 
   return { ok: true, updated };
+});
+
+// === STRIPE: create a Checkout Session in test mode ===
+export const createCheckoutSession = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+
+  const { eventId, quantity = 1 } = req.data || {};
+  if (!eventId) {
+    throw new HttpsError('invalid-argument', 'Missing eventId.');
+  }
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
+    throw new HttpsError('invalid-argument', 'Quantity must be 1–10.');
+  }
+
+  const db = getFirestore();
+  const evSnap = await db.collection('events').doc(eventId).get();
+  if (!evSnap.exists) {
+    throw new HttpsError('not-found', 'Event not found.');
+  }
+  const ev = evSnap.data();
+
+  // Only allow purchasing for approved + published events
+  const purchasable =
+    ev?.moderationStatus === 'approved' && ev?.publishStatus === 'published';
+  if (!purchasable) {
+    throw new HttpsError('failed-precondition', 'Event is not purchasable.');
+  }
+
+  // Capacity check
+  if (ticketsRemaining(ev) < quantity) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Not enough tickets available.'
+    );
+  }
+
+  // MVP: only support fixed-price events for Checkout
+  if (ev?.priceType !== 'fixed' || typeof ev?.price !== 'number') {
+    throw new HttpsError(
+      'failed-precondition',
+      'This event is not configured for card payments yet.'
+    );
+  }
+
+  // Build Stripe objects
+  const stripe = new Stripe(STRIPE_SECRET, {
+    // optional: apiVersion: '2024-06-20',
+  });
+  const origin = APP_ORIGIN || 'http://localhost:5173';
+
+  const currency = (ev?.currency || 'USD').toLowerCase();
+  const unitAmount = Math.round(ev.price * 100); // to minor units
+
+  const successUrl = `${origin}/orders/success?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${origin}/events/${eventId}`;
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [
+      {
+        price_data: {
+          currency,
+          unit_amount: unitAmount,
+          product_data: {
+            name: ev.title || 'Event',
+            images: ev?.image ? [ev.image] : [],
+            metadata: { eventId },
+          },
+        },
+        quantity,
+      },
+    ],
+    metadata: {
+      eventId,
+      userId: uid,
+    },
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+  });
+
+  // Return the hosted Checkout URL to the client
+  return { url: session.url };
 });
