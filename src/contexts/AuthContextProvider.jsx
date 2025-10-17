@@ -80,6 +80,9 @@ export function AuthContextProvider({ children }) {
             about: '',
             address: null, // <- optional
             createdAt: new Date().toISOString(),
+            email: fbUser.email ?? '',
+            providerIds: (fbUser.providerData || []).map((p) => p.providerId),
+            updatedAt: new Date().toISOString(),
           });
           snap = await getDoc(ref);
         }
@@ -89,6 +92,21 @@ export function AuthContextProvider({ children }) {
         if (!raw.username) {
           raw.username = fbUser.email ?? '';
           await setDoc(ref, { username: raw.username }, { merge: true });
+        }
+
+        // --- Keep email / providerIds fresh on every sign-in ---
+        const patch = {};
+        const currentEmail = fbUser.email ?? '';
+        if ((raw.email || '') !== currentEmail) {
+          patch.email = currentEmail;
+        }
+        const prov = (fbUser.providerData || []).map((p) => p.providerId);
+        if (JSON.stringify(raw.providerIds || []) !== JSON.stringify(prov)) {
+          patch.providerIds = prov;
+        }
+        if (Object.keys(patch).length) {
+          patch.updatedAt = new Date().toISOString();
+          await setDoc(ref, patch, { merge: true });
         }
         // -----------------------------------------------------
 
@@ -182,6 +200,9 @@ export function AuthContextProvider({ children }) {
         about: '',
         address: null,
         createdAt: new Date().toISOString(),
+        email, // mirror auth email into profile
+        providerIds: ['password'], // initial provider for emailpassword
+        updatedAt: new Date().toISOString(),
       });
       return { uid: cred.user.uid, email: cred.user.email };
     } catch (err) {

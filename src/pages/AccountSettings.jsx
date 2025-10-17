@@ -15,7 +15,8 @@ import { Textarea } from '@/components/catalyst-ui-kit/textarea';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import AlertPopup from '@/components/ui/AlertPopup';
 
-import { auth } from '@/services/firebase';
+import { auth, db } from '@/services/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 import { Heading } from '@/components/catalyst-ui-kit/heading';
 import { Text } from '@/components/catalyst-ui-kit/text';
 import Loading from '@/components/ui/Loading';
@@ -126,6 +127,13 @@ export default function AccountSettings() {
         currentPassword: usingGoogle ? undefined : currentPwForEmail,
         viaGoogle: usingGoogle,
       });
+      // Optionally mirror right away (UI convenience; true source of truth is Auth)
+      if (user?.uid) {
+        await updateDoc(doc(db, 'profiles', user.uid), {
+          email: newEmail.trim(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
 
       setCurrentPwForEmail('');
       setAlertTitle('Verify your new email');
@@ -210,6 +218,25 @@ export default function AccountSettings() {
         <section className='border-b border-white/10 pb-10'>
           <Heading>Account settings</Heading>
           <Text>This information may be visible to other users.</Text>
+          {profile?.blocked && (
+            <div className='mb-6 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300'>
+              Your account is <strong>blocked</strong>. You may be unable to
+              sign in until a staff member unblocks you.
+            </div>
+          )}
+
+          <div className='mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs text-zinc-300'>
+            <span>Status:</span>
+            <span className='rounded-full bg-zinc-800 px-2 py-0.5'>
+              {profile?.role === 'staff' ? 'Staff' : 'Member'}
+            </span>
+            {profile?.blocked && (
+              <span className='rounded-full bg-red-700/60 px-2 py-0.5'>
+                Blocked
+              </span>
+            )}
+          </div>
+
           <div className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-6'>
             <div className='sm:col-span-2'>
               <Field>

@@ -47,8 +47,13 @@ function AuthSignIn() {
       await signIn(email, password, { remember });
       navigate(from, { replace: true });
     } catch (err) {
-      setAlertTitle('Login failed');
-      setAlertMessage(err.message || 'Invalid email or password.');
+      if (err?.code === 'auth/user-disabled') {
+        setAlertTitle('Account blocked');
+        setAlertMessage('Your account is blocked. Please contact support.');
+      } else {
+        setAlertTitle('Login failed');
+        setAlertMessage(err.message || 'Invalid email or password.');
+      }
       setIsAlertOpen(true);
     }
   }
@@ -62,8 +67,13 @@ function AuthSignIn() {
       // and onAuthStateChanged will handle session after redirect.
       navigate(from, { replace: true });
     } catch (err) {
-      setAlertTitle('Login failed');
-      setAlertMessage(err.message || 'Google sign-in error');
+      if (err?.code === 'auth/user-disabled') {
+        setAlertTitle('Account blocked');
+        setAlertMessage('Your account is blocked. Please contact support.');
+      } else {
+        setAlertTitle('Login failed');
+        setAlertMessage(err.message || 'Google sign-in error');
+      }
       setIsAlertOpen(true);
     }
   }

@@ -21,6 +21,8 @@ import {
   getRole,
   callPublishEvent,
   callSetPublishStatus,
+  callStaffSetUserBlocked,
+  callStaffSetUserRole,
 } from '@/services/cloudFunctions';
 import { slugify } from '@/utils/slug';
 
@@ -117,6 +119,24 @@ export function sortStaffEvents(a, b) {
     tsToNumber(b.startsAt);
 
   return aT - bT;
+}
+
+/** Sort: pending first; then by updatedAt DESC (newest first); fallback createdAt; startsAt */
+export function sortStaffEventsNewest(a, b) {
+  const ap = a.moderationStatus === 'pending';
+  const bp = b.moderationStatus === 'pending';
+  if (ap !== bp) return ap ? -1 : 1;
+
+  const aT =
+    tsToNumber(a.updatedAt) ||
+    tsToNumber(a.createdAt) ||
+    tsToNumber(a.startsAt);
+  const bT =
+    tsToNumber(b.updatedAt) ||
+    tsToNumber(b.createdAt) ||
+    tsToNumber(b.startsAt);
+
+  return bT - aT; // DESC
 }
 
 /** Staff actions */
@@ -310,4 +330,57 @@ export async function getEventForPublic(eventId, currentUserId = null) {
 
   // otherwise hide
   return null;
+}
+
+// Read any user's profile (for staff view)
+export async function getProfileById(uid, { fromServer = true } = {}) {
+  const ref = doc(db, 'profiles', uid);
+  const snap = fromServer ? await getDocFromServer(ref) : await getDoc(ref);
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Staff can update safe fields directly (rules allow it)
+export async function staffUpdateUserProfile(uid, partial) {
+  await updateDoc(doc(db, 'profiles', uid), {
+    ...partial,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+// Staff role change
+export async function staffSetUserRole(uid, role) {
+  const res = await callStaffSetUserRole(uid, role);
+  return res;
+}
+
+// Staff block/unblock
+export async function staffSetUserBlocked(uid, blocked) {
+  const res = await callStaffSetUserBlocked(uid, blocked);
+  return res;
+}
+
+// --- STAFF: realtime list of all profiles
+export function subscribeAllProfilesForStaff(onProfiles) {
+  const ref = collection(db, 'profiles');
+  const unsub = onSnapshot(ref, (snap) => {
+    const list = [];
+    snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+    onProfiles(list);
+  });
+  return unsub;
+}
+
+// --- STAFF: profile sorting (blocked first, then role=staff, then recent update)
+export function sortStaffProfiles(a, b) {
+  const ab = !!a.blocked;
+  const bb = !!b.blocked;
+  if (ab !== bb) return ab ? -1 : 1;
+
+  const ar = a.role === 'staff';
+  const br = b.role === 'staff';
+  if (ar !== br) return ar ? -1 : 1;
+
+  const at = tsToNumber(a.updatedAt) || tsToNumber(a.createdAt) || 0;
+  const bt = tsToNumber(b.updatedAt) || tsToNumber(b.createdAt) || 0;
+  return bt - at; // newest first
 }

@@ -10,7 +10,7 @@ import { ArrowRightEndOnRectangleIcon } from '@heroicons/react/20/solid';
 import StaffDropdownMenu from '@/components/ui/StaffDropdownMenu';
 import { useAuth } from '@/contexts/useAuth';
 import Logo from '@/components/ui/Logo';
-import SearchBar from '@/components/ui/SearchBar';
+// import SearchBar from '@/components/ui/SearchBar';
 import MainMenu from '../ui/MainMenu';
 import UserMenu from '../ui/UserMenu';
 
@@ -23,7 +23,7 @@ export default function Header({ mainMenuNavItems }) {
       {profile?.role === 'staff' && (
         <StaffDropdownMenu className='max-lg:hidden' />
       )}
-      <SearchBar className='hidden lg:block w-full max-w-md' />
+      {/* <SearchBar className='hidden lg:block w-full max-w-md' /> */}
       <MainMenu
         navItems={mainMenuNavItems}
         variant='navbar'

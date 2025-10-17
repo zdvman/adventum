@@ -13,7 +13,7 @@ function SidebarBlock({ mainMenuNavItems }) {
           <StaffDropdownMenu className='lg:mb-2.5' />
         )}
       </SidebarHeader>
-      <SearchBar className='px-2.5 mt-3 mb-3' />
+      {/* <SearchBar className='px-2.5 mt-3 mb-3' /> */}
       <MainMenu navItems={mainMenuNavItems} variant='sidebar' />
     </Sidebar>
   );

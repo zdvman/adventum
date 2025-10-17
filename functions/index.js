@@ -375,3 +375,100 @@ export const setPublishStatus = onCall(async (req) => {
 
   return { publishStatus: 'published', moderationStatus: nextModeration };
 });
+
+// --- STAFF: set user role ---
+export const staffSetUserRole = onCall(async (req) => {
+  const adminUid = req.auth?.uid;
+  if (!adminUid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const role = await readRole(adminUid);
+  if (role !== 'staff')
+    throw new HttpsError('permission-denied', 'Staff only.');
+
+  const { userId, role: nextRole } = req.data || {};
+  if (!userId || !['member', 'staff'].includes(nextRole)) {
+    throw new HttpsError(
+      'invalid-argument',
+      'Missing/invalid { userId, role }.'
+    );
+  }
+
+  const db = getFirestore();
+  await db.collection('profiles').doc(userId).update({
+    role: nextRole,
+    updatedAt: new Date().toISOString(),
+  });
+
+  // (Optional) also set a custom claim if you later use it in backend checks
+  // await getAdminAuth().setCustomUserClaims(userId, { role: nextRole });
+
+  return { ok: true, role: nextRole };
+});
+
+// --- STAFF: block / unblock user (Auth + Profile) ---
+export const staffSetUserBlocked = onCall(async (req) => {
+  const adminUid = req.auth?.uid;
+  if (!adminUid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const role = await readRole(adminUid);
+  if (role !== 'staff')
+    throw new HttpsError('permission-denied', 'Staff only.');
+
+  const { userId, blocked } = req.data || {};
+  if (!userId || typeof blocked !== 'boolean') {
+    throw new HttpsError(
+      'invalid-argument',
+      'Missing/invalid { userId, blocked }.'
+    );
+  }
+
+  const db = getFirestore();
+  const adminAuth = getAdminAuth();
+
+  // Disable/enable Auth user login
+  await adminAuth.updateUser(userId, { disabled: blocked });
+
+  // Mirror to profile for UI
+  await db.collection('profiles').doc(userId).update({
+    blocked,
+    updatedAt: new Date().toISOString(),
+  });
+
+  return { ok: true, blocked };
+});
+
+export const staffBackfillProfileEmails = onCall(async (req) => {
+  const adminUid = req.auth?.uid;
+  if (!adminUid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const role = await readRole(adminUid);
+  if (role !== 'staff')
+    throw new HttpsError('permission-denied', 'Staff only.');
+
+  const db = getFirestore();
+  const adminAuth = getAdminAuth();
+
+  let updated = 0;
+  let token = undefined;
+
+  do {
+    const page = await adminAuth.listUsers(1000, token);
+    token = page.pageToken;
+
+    const batch = db.batch();
+    for (const u of page.users) {
+      const ref = db.collection('profiles').doc(u.uid);
+      batch.set(
+        ref,
+        {
+          email: u.email || '',
+          providerIds: (u.providerData || []).map((p) => p.providerId),
+          authDisabled: !!u.disabled,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+      updated++;
+    }
+    await batch.commit();
+  } while (token);
+
+  return { ok: true, updated };
+});
