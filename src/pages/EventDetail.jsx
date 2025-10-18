@@ -16,6 +16,7 @@ import {
 // Catalyst UI
 import { Heading } from '@/components/catalyst-ui-kit/heading';
 import { Button } from '@/components/catalyst-ui-kit/button';
+import { Input } from '@/components/catalyst-ui-kit/input';
 import { Badge } from '@/components/catalyst-ui-kit/badge';
 import { Link } from '@/components/catalyst-ui-kit/link';
 import { Strong, Text } from '@/components/catalyst-ui-kit/text';
@@ -57,6 +58,12 @@ export default function EventDetail() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
+  const [qty, setQty] = useState(1);
+  const [qtyDraft, setQtyDraft] = useState(null);
+
+  const remaining = event ? ticketsRemaining(event) : 0;
+  const maxQty = Math.max(0, remaining);
+  const minQty = remaining > 0 ? 1 : 0;
 
   useEffect(() => {
     let ignore = false;
@@ -137,6 +144,15 @@ export default function EventDetail() {
     };
   }, [id, navigate, setError, initializing, user?.uid, profile?.role, user]);
 
+  useEffect(() => {
+    setQty((prev) => {
+      if (maxQty === 0) return 0;
+      if (!Number.isInteger(prev) || prev < 1) return 1;
+      if (prev > maxQty) return maxQty;
+      return prev;
+    });
+  }, [maxQty]);
+
   // While auth bootstraps OR fetching the doc
   if (initializing || loading) return <Loading />;
 
@@ -163,7 +179,6 @@ export default function EventDetail() {
   if (!event) return null;
 
   /* -------------------- derived using your helpers -------------------- */
-  const remaining = ticketsRemaining(event);
   const onSale = isOnSale(event);
   const showSale = shouldShowSaleBadgeInMyEvents(event);
   const dateRangeLabel = formatDateRangeLabel(event.startsAt, event.endsAt);
@@ -315,11 +330,81 @@ export default function EventDetail() {
                       {priceLabel}
                     </div>
 
+                    {/* Quantity stepper (hidden if sold out) */}
+                    {remaining > 0 && (
+                      <div className='mt-4 flex items-stretch gap-2'>
+                        <Button
+                          outline
+                          color='zinc'
+                          className='!rounded-xl !px-3'
+                          aria-label='Decrease quantity'
+                          onClick={() => {
+                            setQtyDraft(null); // exit edit mode
+                            setQty((n) => Math.max(minQty, (n || 0) - 1));
+                          }}
+                          disabled={qty <= minQty}
+                        >
+                          –
+                        </Button>
+
+                        <div className='w-24'>
+                          <Input
+                            // use text + numeric keyboard; we control digits ourselves
+                            type='text'
+                            inputMode='numeric'
+                            pattern='[0-9]*'
+                            value={qtyDraft ?? String(qty)}
+                            onFocus={(e) => {
+                              // select all so the first key replaces the old value
+                              e.target.select();
+                              setQtyDraft(String(qty));
+                            }}
+                            onChange={(e) => {
+                              const digits = e.target.value.replace(/\D+/g, '');
+                              // allow empty while typing (user can clear)
+                              setQtyDraft(digits);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') e.currentTarget.blur(); // commit on Enter
+                            }}
+                            onBlur={() => {
+                              const n =
+                                qtyDraft === '' ? NaN : Number(qtyDraft);
+                              const clamped = Number.isFinite(n)
+                                ? Math.min(
+                                    maxQty,
+                                    Math.max(minQty, Math.floor(n))
+                                  )
+                                : minQty;
+                              setQty(clamped);
+                              setQtyDraft(null); // leave edit mode
+                            }}
+                            className='text-center'
+                            aria-label='Ticket quantity'
+                          />
+                        </div>
+
+                        <Button
+                          outline
+                          color='zinc'
+                          className='!rounded-xl !px-3'
+                          aria-label='Increase quantity'
+                          onClick={() => {
+                            setQtyDraft(null); // exit edit mode
+                            setQty((n) => Math.min(maxQty, (n || 0) + 1));
+                          }}
+                          disabled={qty >= maxQty}
+                        >
+                          +
+                        </Button>
+                      </div>
+                    )}
+
                     <Button
                       href={`/checkout/${event.id}`}
                       color='indigo'
                       className='mt-4 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 font-medium'
-                      disabled={!showSale || !onSale}
+                      disabled={!showSale || !onSale || remaining <= 0}
                     >
                       {onSale && showSale ? 'Get tickets' : 'Not on sale'}
                     </Button>
