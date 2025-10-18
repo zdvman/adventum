@@ -1,9 +1,29 @@
 // functions/index.js
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import crypto from 'crypto';
+
+const MIN_UNIT_BY_CURRENCY = { usd: 50, eur: 50, gbp: 30 }; // minor units => $0.50, €0.50, £0.30
+function minUnitAmountMinor(currency) {
+  return MIN_UNIT_BY_CURRENCY[(currency || '').toLowerCase()] ?? 50;
+}
+function httpUrlOrNull(maybeUrl) {
+  try {
+    const u = new URL(String(maybeUrl));
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+function normalizeOrigin(maybeOrigin, fallback = 'http://localhost:5173') {
+  try {
+    return new URL(String(maybeOrigin || fallback)).origin;
+  } catch {
+    return new URL(fallback).origin;
+  }
+}
 
 import Stripe from 'stripe';
 const STRIPE_SECRET =
@@ -484,88 +504,349 @@ export const staffBackfillProfileEmails = onCall(async (req) => {
   return { ok: true, updated };
 });
 
-// === STRIPE: create a Checkout Session in test mode ===
 export const createCheckoutSession = onCall(async (req) => {
   const uid = req.auth?.uid;
-  if (!uid) {
-    throw new HttpsError('unauthenticated', 'Sign in required.');
-  }
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
 
-  const { eventId, quantity = 1 } = req.data || {};
-  if (!eventId) {
-    throw new HttpsError('invalid-argument', 'Missing eventId.');
-  }
+  const {
+    eventId,
+    quantity = 1,
+    currency: currencyOverride,
+    overrideUnitAmount, // optional minor units (PWYW > 0)
+  } = req.data || {};
+
+  if (!eventId) throw new HttpsError('invalid-argument', 'Missing eventId.');
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
     throw new HttpsError('invalid-argument', 'Quantity must be 1–10.');
   }
 
   const db = getFirestore();
   const evSnap = await db.collection('events').doc(eventId).get();
-  if (!evSnap.exists) {
-    throw new HttpsError('not-found', 'Event not found.');
-  }
+  if (!evSnap.exists) throw new HttpsError('not-found', 'Event not found.');
   const ev = evSnap.data();
 
-  // Only allow purchasing for approved + published events
   const purchasable =
     ev?.moderationStatus === 'approved' && ev?.publishStatus === 'published';
-  if (!purchasable) {
+  if (!purchasable)
     throw new HttpsError('failed-precondition', 'Event is not purchasable.');
-  }
 
-  // Capacity check
-  if (ticketsRemaining(ev) < quantity) {
+  const remaining = Math.max(0, (ev.capacity ?? 0) - (ev.ticketsSold ?? 0));
+  if (remaining < quantity) {
     throw new HttpsError(
       'failed-precondition',
       'Not enough tickets available.'
     );
   }
 
-  // MVP: only support fixed-price events for Checkout
-  if (ev?.priceType !== 'fixed' || typeof ev?.price !== 'number') {
+  const currency = (currencyOverride || ev?.currency || 'USD').toLowerCase();
+
+  // Decide payable amount (type-agnostic)
+  let unitAmountMinor = null;
+  if (Number.isInteger(overrideUnitAmount) && overrideUnitAmount > 0) {
+    unitAmountMinor = overrideUnitAmount; // PWYW > 0
+  } else if (typeof ev?.price === 'number' && ev.price > 0) {
+    unitAmountMinor = Math.round(ev.price * 100); // fixed
+  } else {
     throw new HttpsError(
       'failed-precondition',
-      'This event is not configured for card payments yet.'
+      'No payable amount. Use the free order endpoint.'
     );
   }
 
-  // Build Stripe objects
-  const stripe = new Stripe(STRIPE_SECRET, {
-    // optional: apiVersion: '2024-06-20',
-  });
-  const origin = APP_ORIGIN || 'http://localhost:5173';
+  const minMinor = minUnitAmountMinor(currency);
+  if (unitAmountMinor < minMinor) {
+    const minHuman = (minMinor / 100).toFixed(2);
+    throw new HttpsError(
+      'invalid-argument',
+      `Amount too low for ${currency.toUpperCase()}. Minimum is ${minHuman}.`
+    );
+  }
 
-  const currency = (ev?.currency || 'USD').toLowerCase();
-  const unitAmount = Math.round(ev.price * 100); // to minor units
+  const origin = normalizeOrigin(
+    process.env.APP__ORIGIN || process.env.APP_ORIGIN || APP_ORIGIN
+  );
+  const successUrl = `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${origin}/checkout/cancel?event=${encodeURIComponent(
+    eventId
+  )}`;
 
-  const successUrl = `${origin}/orders/success?session_id={CHECKOUT_SESSION_ID}`;
-  const cancelUrl = `${origin}/events/${eventId}`;
+  const image = httpUrlOrNull(ev?.image);
+  const images = image ? [image] : undefined;
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'payment',
-    payment_method_types: ['card'],
-    line_items: [
-      {
-        price_data: {
-          currency,
-          unit_amount: unitAmount,
-          product_data: {
-            name: ev.title || 'Event',
-            images: ev?.image ? [ev.image] : [],
-            metadata: { eventId },
+  const stripe = new Stripe(STRIPE_SECRET /*, { apiVersion: '2024-06-20' }*/);
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency,
+            unit_amount: unitAmountMinor,
+            product_data: {
+              name: ev.title || 'Event',
+              ...(images ? { images } : {}),
+              metadata: { eventId },
+            },
           },
+          quantity,
         },
-        quantity,
+      ],
+      metadata: {
+        eventId,
+        userId: uid,
+        unitAmountMinor,
       },
-    ],
-    metadata: {
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    });
+
+    return { url: session.url };
+  } catch (err) {
+    console.error('Stripe session error', {
+      message: err?.message,
+      type: err?.type,
+      code: err?.code,
+      param: err?.param,
+    });
+    throw new HttpsError('internal', err?.message || 'Stripe error');
+  }
+});
+
+export const finalizeCheckoutSession = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+  const sessionId = req.data?.sessionId;
+  if (!sessionId)
+    throw new HttpsError('invalid-argument', 'Missing sessionId.');
+
+  const stripe = new Stripe(STRIPE_SECRET);
+
+  // 1) Retrieve session from Stripe
+  let session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId, {
+      expand: ['line_items', 'payment_intent'],
+    });
+  } catch (e) {
+    console.error('Stripe retrieve error', e);
+    throw new HttpsError('not-found', 'Invalid or unknown session.');
+  }
+
+  if (session.mode !== 'payment') {
+    throw new HttpsError('failed-precondition', 'Not a payment session.');
+  }
+
+  const paid =
+    session.payment_status === 'paid' ||
+    (typeof session.payment_intent === 'object' &&
+      session.payment_intent?.status === 'succeeded') ||
+    typeof session.payment_intent === 'string';
+  if (!paid) {
+    throw new HttpsError('failed-precondition', 'Payment not completed.');
+  }
+
+  const eventId = session.metadata?.eventId;
+  const sessionUser = session.metadata?.userId;
+  if (!eventId || !sessionUser) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Missing event/user metadata on session.'
+    );
+  }
+  if (sessionUser !== uid) {
+    throw new HttpsError(
+      'permission-denied',
+      'This session does not belong to you.'
+    );
+  }
+
+  const line = session.line_items?.data?.[0] || null;
+  const quantity = line?.quantity ?? 1;
+  const currency = (session.currency || 'USD').toUpperCase();
+
+  // Prefer exact unit price from line; else derive from subtotal
+  const unitAmountMinor =
+    line?.price?.unit_amount ??
+    (Number.isFinite(session.amount_subtotal) && quantity > 0
+      ? Math.round(session.amount_subtotal / quantity)
+      : null);
+
+  const totalMinor = Number.isFinite(session.amount_total)
+    ? session.amount_total
+    : (unitAmountMinor ?? 0) * quantity;
+
+  // 2) Idempotent write + capacity update in a single transaction
+  const db = getFirestore();
+  const ordersRef = db.collection('orders').doc(session.id); // doc id = Stripe session id
+  const evRef = db.collection('events').doc(eventId);
+  const countersRef = db.collection('meta').doc('counters'); // for pretty order numbers
+
+  let orderOut = null;
+  let created = false;
+
+  await db.runTransaction(async (tx) => {
+    // Idempotency: if order already exists, return it
+    const existing = await tx.get(ordersRef);
+    if (existing.exists) {
+      orderOut = existing.data();
+      return;
+    }
+
+    // Event + capacity
+    const evSnap = await tx.get(evRef);
+    if (!evSnap.exists) throw new HttpsError('not-found', 'Event not found.');
+    const ev = evSnap.data();
+
+    const cap = Math.max(0, ev?.capacity ?? 0);
+    const sold = Math.max(0, ev?.ticketsSold ?? 0);
+    const remainingNow = Math.max(0, cap - sold);
+
+    let status = 'paid';
+    let nextSold = sold;
+    if (remainingNow >= quantity) {
+      nextSold = sold + quantity;
+    } else {
+      status = 'paid_over_capacity'; // will need manual resolution/refund
+    }
+
+    // --- Pretty order code ---
+    const countersSnap = await tx.get(countersRef);
+    const prev =
+      countersSnap.exists && Number.isFinite(countersSnap.data().orders)
+        ? countersSnap.data().orders
+        : 0;
+    const nextNum = prev + 1;
+    const orderCode = String(nextNum).padStart(6, '0');
+    tx.set(
+      countersRef,
+      { orders: nextNum, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
+    const orderDoc = {
+      id: ordersRef.id, // Stripe session id (doc id)
+      orderCode, // human-friendly code (e.g., "000123")
+      stripeSessionId: session.id,
+      stripePaymentIntentId:
+        typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : session.payment_intent?.id || null,
       eventId,
       userId: uid,
-    },
-    success_url: successUrl,
-    cancel_url: cancelUrl,
+      quantity,
+      unitPrice: (unitAmountMinor ?? 0) / 100,
+      total: (totalMinor ?? 0) / 100,
+      currency,
+      priceType: ev?.priceType || 'fixed',
+      status, // 'paid' or 'paid_over_capacity'
+      paymentProvider: 'stripe',
+      paymentStatus: 'succeeded',
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    tx.set(ordersRef, orderDoc);
+    if (status === 'paid') {
+      tx.update(evRef, {
+        ticketsSold: nextSold,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+
+    orderOut = orderDoc;
+    created = true;
   });
 
-  // Return the hosted Checkout URL to the client
-  return { url: session.url };
+  return { created, order: orderOut };
+});
+
+export const createFreeOrder = onCall(async (req) => {
+  const uid = req.auth?.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in required.');
+
+  const { eventId, quantity = 1, currency = 'EUR' } = req.data || {};
+  if (!eventId) throw new HttpsError('invalid-argument', 'Missing eventId.');
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 10) {
+    throw new HttpsError('invalid-argument', 'Quantity must be 1–10.');
+  }
+
+  const db = getFirestore();
+  const evRef = db.collection('events').doc(eventId);
+  const orderRef = db.collection('orders').doc(); // random id for free orders is fine
+  const countersRef = db.collection('meta').doc('counters');
+
+  let orderOut = null;
+
+  await db.runTransaction(async (tx) => {
+    const evSnap = await tx.get(evRef);
+    if (!evSnap.exists) throw new HttpsError('not-found', 'Event not found.');
+    const ev = evSnap.data();
+
+    const purchasable =
+      ev?.moderationStatus === 'approved' && ev?.publishStatus === 'published';
+    if (!purchasable) {
+      throw new HttpsError('failed-precondition', 'Event is not purchasable.');
+    }
+
+    if (ev?.priceType !== 'free' && ev?.priceType !== 'payWhatYouWant') {
+      throw new HttpsError(
+        'failed-precondition',
+        'Free orders are only for free or PWYW events.'
+      );
+    }
+
+    const remainingNow = Math.max(
+      0,
+      (ev.capacity ?? 0) - (ev.ticketsSold ?? 0)
+    );
+    const maxQty = Math.min(10, Math.max(0, remainingNow));
+    if (quantity > maxQty) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Not enough tickets available.'
+      );
+    }
+
+    // Pretty order number
+    const countersSnap = await tx.get(countersRef);
+    const prev =
+      countersSnap.exists && Number.isFinite(countersSnap.data().orders)
+        ? countersSnap.data().orders
+        : 0;
+    const nextNum = prev + 1;
+    const orderCode = String(nextNum).padStart(6, '0');
+    tx.set(
+      countersRef,
+      { orders: nextNum, updatedAt: FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+
+    // Confirm free order and increment sold
+    tx.update(evRef, {
+      ticketsSold: Math.max(0, Number(ev.ticketsSold || 0)) + quantity,
+      updatedAt: new Date().toISOString(),
+    });
+
+    const orderDoc = {
+      id: orderRef.id,
+      orderCode,
+      eventId,
+      userId: uid,
+      quantity,
+      unitPrice: 0,
+      total: 0,
+      currency: ev?.currency || currency || 'EUR',
+      priceType: ev?.priceType,
+      status: 'confirmed',
+      paymentProvider: 'none',
+      paymentStatus: 'free',
+      createdAt: FieldValue.serverTimestamp(),
+    };
+
+    tx.set(orderRef, orderDoc);
+    orderOut = orderDoc;
+  });
+
+  return { orderId: orderOut.id, order: orderOut };
 });

@@ -175,9 +175,30 @@ export const router = createBrowserRouter([
       {
         path: '/checkout',
         children: [
-          { path: ':eventId', element: <CheckoutStart /> },
-          { path: 'success', element: <CheckoutSuccess /> },
-          { path: 'cancel', element: <CheckoutCancel /> },
+          {
+            path: ':eventId',
+            element: (
+              <RequireAuth>
+                <CheckoutStart />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'success',
+            element: (
+              <RequireAuth>
+                <CheckoutSuccess />
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'cancel',
+            element: (
+              <RequireAuth>
+                <CheckoutCancel />
+              </RequireAuth>
+            ),
+          },
         ],
       },
 

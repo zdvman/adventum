@@ -73,10 +73,20 @@ export async function callStaffBackfillProfileEmails() {
   return data; // { ok, updated }
 }
 
-// === STRIPE: create a Checkout Session (client wrapper) ===
-export async function callCreateCheckoutSession({ eventId, quantity = 1 }) {
+export async function callCreateCheckoutSession(payload) {
   const fn = httpsCallable(functions, 'createCheckoutSession');
-  const { data } = await fn({ eventId, quantity });
-  // data is { url }
-  return data;
+  const res = await fn(payload);
+  return res.data || {};
+}
+
+export async function callCreateFreeOrder(payload) {
+  const fn = httpsCallable(functions, 'createFreeOrder');
+  const res = await fn(payload);
+  return res.data || {};
+}
+
+export async function callFinalizeCheckoutSession(sessionId) {
+  const fn = httpsCallable(functions, 'finalizeCheckoutSession');
+  const res = await fn({ sessionId });
+  return res.data || {};
 }

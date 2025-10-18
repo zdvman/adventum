@@ -62,7 +62,7 @@ export default function EventDetail() {
   const [qtyDraft, setQtyDraft] = useState(null);
 
   const remaining = event ? ticketsRemaining(event) : 0;
-  const maxQty = Math.max(0, remaining);
+  const maxQty = Math.min(10, Math.max(0, remaining));
   const minQty = remaining > 0 ? 1 : 0;
 
   useEffect(() => {
@@ -401,7 +401,7 @@ export default function EventDetail() {
                     )}
 
                     <Button
-                      href={`/checkout/${event.id}`}
+                      href={`/checkout/${event.id}?qty=${qty}`}
                       color='indigo'
                       className='mt-4 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3 font-medium'
                       disabled={!showSale || !onSale || remaining <= 0}

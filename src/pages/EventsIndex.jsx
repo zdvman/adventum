@@ -77,6 +77,7 @@ export default function EventsIndex() {
   const [searchBy, setSearchBy] = useState('any'); // any|title|date|venue
   const [sortBy, setSortBy] = useState('upcoming_soonest'); // upcoming_soonest|created_newest|created_oldest
   const [saleFilter, setSaleFilter] = useState('on'); // all|on
+  const [priceTypeFilter, setPriceTypeFilter] = useState('all'); // all|fixed|payWhatYouWant|free
 
   useEffect(() => {
     let alive = true;
@@ -126,6 +127,11 @@ export default function EventsIndex() {
       if (saleFilter === 'on' && !isOnSale(ev)) return false;
       return true;
     });
+
+    // 1.1) filter by price type (fixed | payWhatYouWant | free)
+    if (priceTypeFilter !== 'all') {
+      list = list.filter((ev) => (ev?.priceType || '') === priceTypeFilter);
+    }
 
     // 2) search
     if (term) {
@@ -187,7 +193,7 @@ export default function EventsIndex() {
         showOnSale,
       };
     });
-  }, [events, venuesMap, q, searchBy, sortBy, saleFilter]);
+  }, [events, venuesMap, q, searchBy, sortBy, saleFilter, priceTypeFilter]);
 
   if (loading) {
     return (
@@ -257,6 +263,18 @@ export default function EventsIndex() {
               >
                 <option value='all'>All sale states</option>
                 <option value='on'>On sale only</option>
+              </Select>
+            </div>
+            <div>
+              <Select
+                name='price_type'
+                value={priceTypeFilter}
+                onChange={(e) => setPriceTypeFilter(e.target.value)}
+              >
+                <option value='all'>All price types</option>
+                <option value='fixed'>Fixed price</option>
+                <option value='payWhatYouWant'>Pay what you want</option>
+                <option value='free'>Free</option>
               </Select>
             </div>
           </div>

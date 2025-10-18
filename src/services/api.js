@@ -398,3 +398,40 @@ export function sortStaffProfiles(a, b) {
   const bt = tsToNumber(b.updatedAt) || tsToNumber(b.createdAt) || 0;
   return bt - at; // newest first
 }
+
+// ---------- Orders (buyer reads) ----------
+export async function getMyOrders(uid, { limitTo = 100 } = {}) {
+  if (!uid) return [];
+  const qy = query(
+    collection(db, 'orders'),
+    where('userId', '==', uid),
+    orderBy('createdAt', 'desc'),
+    limit(limitTo)
+  );
+  const snap = await getDocs(qy);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function getOrderById(orderId) {
+  if (!orderId) return null;
+  const ref = doc(db, 'orders', orderId);
+  const snap = await getDoc(ref);
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+/** Batch-hydrate events referenced by orders. Missing/forbidden events are skipped. */
+export async function getEventsByIds(ids = []) {
+  const unique = Array.from(new Set(ids.filter(Boolean)));
+  const out = {};
+  await Promise.all(
+    unique.map(async (id) => {
+      try {
+        const s = await getDoc(doc(db, 'events', id));
+        if (s.exists()) out[id] = { id: s.id, ...s.data() };
+      } catch {
+        // If rules deny, just skip; UI will handle gracefully.
+      }
+    })
+  );
+  return out;
+}

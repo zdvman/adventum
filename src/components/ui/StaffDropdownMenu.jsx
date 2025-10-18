@@ -41,14 +41,14 @@ export default function StaffDropdownMenu({ className }) {
             <TableCellsIcon />
             <DropdownLabel>Events</DropdownLabel>
           </DropdownItem>
-          <DropdownItem href='/staff/venues'>
+          {/* <DropdownItem href='/staff/venues'>
             <MapIcon />
             <DropdownLabel>Venues</DropdownLabel>
           </DropdownItem>
           <DropdownItem href='/staff/categories'>
             <TagIcon />
             <DropdownLabel>Categories</DropdownLabel>
-          </DropdownItem>
+          </DropdownItem> */}
         </DropdownMenu>
       )}
     </Dropdown>
