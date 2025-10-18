@@ -16,12 +16,12 @@ import {
 import Loading from '@/components/ui/Loading';
 
 import { getMyOrders, getEventsByIds } from '@/services/api';
-import { formatMoney } from '@/utils/eventHelpers';
+import { formatMoney, shortId } from '@/utils/eventHelpers';
 import { buildGoogleCalendarUrl } from '@/services/calendarLinks';
 
 function prettyId(order) {
   if (!order) return '';
-  return order.orderCode ? `#${order.orderCode}` : order.id || '';
+  return order.orderCode ? `#${order.orderCode}` : shortId(order.id || '');
 }
 
 export default function Orders() {

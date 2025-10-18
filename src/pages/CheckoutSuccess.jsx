@@ -10,7 +10,7 @@ import { Heading } from '@/components/catalyst-ui-kit/heading';
 import { Text, Strong, TextLink } from '@/components/catalyst-ui-kit/text';
 import Loading from '@/components/ui/Loading';
 import AlertPopup from '@/components/ui/AlertPopup';
-import { formatMoney } from '@/utils/eventHelpers';
+import { formatMoney, shortId } from '@/utils/eventHelpers';
 import { callFinalizeCheckoutSession } from '@/services/cloudFunctions';
 
 export default function CheckoutSuccess() {
@@ -25,12 +25,6 @@ export default function CheckoutSuccess() {
   const [alertTitle, setAlertTitle] = useState('');
   const [alertMessage, setAlertMessage] = useState('');
   const [copied, setCopied] = useState(false);
-
-  function shortId(id, head = 6, tail = 6) {
-    if (!id) return '';
-    if (id.length <= head + tail + 1) return id;
-    return `${id.slice(0, head)}…${id.slice(-tail)}`;
-  }
 
   async function handleCopyFullId() {
     try {

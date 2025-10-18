@@ -12,7 +12,7 @@ import {
 import { Divider } from '@/components/catalyst-ui-kit/divider';
 import { Heading, Subheading } from '@/components/catalyst-ui-kit/heading';
 import Loading from '@/components/ui/Loading';
-import { formatMoney } from '@/utils/eventHelpers';
+import { formatMoney, shortId } from '@/utils/eventHelpers';
 
 import { getOrderById, getEventById, getVenueById } from '@/services/api';
 import { buildGoogleCalendarUrl } from '@/services/calendarLinks';
@@ -38,6 +38,8 @@ export default function Order() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [copiedSession, setCopiedSession] = useState(false);
+  const [copiedIntent, setCopiedIntent] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -81,7 +83,17 @@ export default function Order() {
   }, [id]);
 
   const prettyId = useMemo(
-    () => (order?.orderCode ? `#${order.orderCode}` : order?.id || ''),
+    () => (order?.orderCode ? `#${order.orderCode}` : shortId(order?.id || '')),
+    [order]
+  );
+
+  const shortSessionId = useMemo(
+    () => (order?.stripeSessionId ? shortId(order.stripeSessionId) : '—'),
+    [order]
+  );
+  const shortPaymentIntentId = useMemo(
+    () =>
+      order?.stripePaymentIntentId ? shortId(order.stripePaymentIntentId) : '—',
     [order]
   );
 
@@ -240,11 +252,71 @@ export default function Order() {
           <DescriptionDetails>{order.paymentStatus || '—'}</DescriptionDetails>
           <DescriptionTerm>Stripe session</DescriptionTerm>
           <DescriptionDetails>
-            {order.stripeSessionId || '—'}
+            <span
+              className='text-zinc-200'
+              title={order.stripeSessionId || undefined}
+            >
+              {shortSessionId}
+            </span>
+            {order.stripeSessionId && (
+              <>
+                <button
+                  className='ml-2 text-xs text-zinc-400 hover:text-zinc-200 underline'
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        order.stripeSessionId
+                      );
+                      setCopiedSession(true);
+                      setTimeout(() => setCopiedSession(false), 1200);
+                    } catch (error) {
+                      console.error('Failed to copy session ID:', error);
+                    }
+                  }}
+                  aria-label='Copy full Stripe session id'
+                  title='Copy full id'
+                >
+                  copy full id
+                </button>
+                {copiedSession && (
+                  <span className='ml-1 text-xs text-emerald-400'>Copied!</span>
+                )}
+              </>
+            )}
           </DescriptionDetails>
           <DescriptionTerm>Payment intent</DescriptionTerm>
           <DescriptionDetails>
-            {order.stripePaymentIntentId || '—'}
+            <span
+              className='text-zinc-200'
+              title={order.stripePaymentIntentId || undefined}
+            >
+              {shortPaymentIntentId}
+            </span>
+            {order.stripePaymentIntentId && (
+              <>
+                <button
+                  className='ml-2 text-xs text-zinc-400 hover:text-zinc-200 underline'
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(
+                        order.stripePaymentIntentId
+                      );
+                      setCopiedIntent(true);
+                      setTimeout(() => setCopiedIntent(false), 1200);
+                    } catch (error) {
+                      console.error('Failed to copy intent ID:', error);
+                    }
+                  }}
+                  aria-label='Copy full payment intent id'
+                  title='Copy full id'
+                >
+                  copy full id
+                </button>
+                {copiedIntent && (
+                  <span className='ml-1 text-xs text-emerald-400'>Copied!</span>
+                )}
+              </>
+            )}
           </DescriptionDetails>
         </DescriptionList>
       </div>

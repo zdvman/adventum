@@ -105,3 +105,9 @@ export function isSameDay(dateLike, term) {
     d1.getDate() === d2.getDate()
   );
 }
+
+export function shortId(id, head = 6, tail = 6) {
+  if (!id) return '';
+  if (id.length <= head + tail + 1) return id;
+  return `${id.slice(0, head)}…${id.slice(-tail)}`;
+}
