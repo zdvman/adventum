@@ -17,6 +17,7 @@ import Loading from '@/components/ui/Loading';
 
 import { getMyOrders, getEventsByIds } from '@/services/api';
 import { formatMoney } from '@/utils/eventHelpers';
+import { buildGoogleCalendarUrl } from '@/services/calendarLinks';
 
 function prettyId(order) {
   if (!order) return '';
@@ -66,6 +67,8 @@ export default function Orders() {
             eventId: o.eventId,
             eventTitle: ev.title || 'Event',
             eventImage: ev.image || '',
+            startsAt: ev.startsAt,
+            endsAt: ev.endsAt,
             amount: formatMoney(o.total || 0, o.currency || 'USD'),
           };
         });
@@ -121,7 +124,31 @@ export default function Orders() {
                   <span>{r.eventTitle}</span>
                 </div>
               </TableCell>
-              <TableCell className='text-right'>{r.amount}</TableCell>
+              <TableCell className='text-right'>
+                {r.amount}
+                {r.startsAt && (
+                  <Button
+                    size='sm'
+                    className='ml-2'
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const tz =
+                        Intl.DateTimeFormat().resolvedOptions().timeZone;
+                      const url = buildGoogleCalendarUrl({
+                        title: r.eventTitle,
+                        startsAt: r.startsAt,
+                        endsAt: r.endsAt,
+                        ctz: tz,
+                        url: `${window.location.origin}/events/${r.eventId}`,
+                      });
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                  >
+                    Add to Calendar
+                  </Button>
+                )}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

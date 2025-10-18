@@ -43,7 +43,9 @@ import {
   getVenueById,
   staffApproveEvent,
   staffRejectEvent,
+  userHasOrderForEvent,
 } from '@/services/api';
+import { buildGoogleCalendarUrl } from '@/services/calendarLinks';
 
 export default function EventDetail() {
   const { user, profile, initializing, setError } = useAuth();
@@ -60,6 +62,7 @@ export default function EventDetail() {
   const [alertMessage, setAlertMessage] = useState('');
   const [qty, setQty] = useState(1);
   const [qtyDraft, setQtyDraft] = useState(null);
+  const [hasOrder, setHasOrder] = useState(false);
 
   const remaining = event ? ticketsRemaining(event) : 0;
   const maxQty = Math.min(10, Math.max(0, remaining));
@@ -143,6 +146,21 @@ export default function EventDetail() {
       ignore = true;
     };
   }, [id, navigate, setError, initializing, user?.uid, profile?.role, user]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!user?.uid || !event?.id) {
+        if (alive) setHasOrder(false);
+        return;
+      }
+      const yes = await userHasOrderForEvent(user.uid, event.id);
+      if (alive) setHasOrder(yes);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [user?.uid, event?.id]);
 
   useEffect(() => {
     setQty((prev) => {
@@ -408,6 +426,36 @@ export default function EventDetail() {
                     >
                       {onSale && showSale ? 'Get tickets' : 'Not on sale'}
                     </Button>
+                    {hasOrder && (
+                      <Button
+                        color='zinc'
+                        outline
+                        className='mt-2 inline-flex w-full items-center justify-center rounded-2xl px-4 py-3'
+                        onClick={() => {
+                          const tz =
+                            Intl.DateTimeFormat().resolvedOptions().timeZone;
+                          const loc = venue
+                            ? [venue.name, venue.city, venue.country]
+                                .filter(Boolean)
+                                .join(', ')
+                            : '';
+                          const url = buildGoogleCalendarUrl({
+                            title: event.title,
+                            startsAt: event.startsAt,
+                            endsAt: event.endsAt,
+                            location: loc,
+                            description: event.description || '',
+                            ctz: tz,
+                            url: `${
+                              window.location.origin
+                            }/events/${composeIdSlug(event.id, event.title)}`,
+                          });
+                          window.open(url, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        Add to Google Calendar
+                      </Button>
+                    )}
 
                     <div className='mt-4 flex items-center gap-2 text-xs text-zinc-400'>
                       {showSale && (

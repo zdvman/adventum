@@ -435,3 +435,14 @@ export async function getEventsByIds(ids = []) {
   );
   return out;
 }
+
+export async function userHasOrderForEvent(uid, eventId) {
+  const qy = query(
+    collection(db, 'orders'),
+    where('userId', '==', uid),
+    where('eventId', '==', eventId),
+    limit(1)
+  );
+  const snap = await getDocs(qy);
+  return !snap.empty;
+}

@@ -12,10 +12,10 @@ import {
 import { Divider } from '@/components/catalyst-ui-kit/divider';
 import { Heading, Subheading } from '@/components/catalyst-ui-kit/heading';
 import Loading from '@/components/ui/Loading';
-import { Text } from '@/components/catalyst-ui-kit/text';
 import { formatMoney } from '@/utils/eventHelpers';
 
-import { getOrderById, getEventById } from '@/services/api';
+import { getOrderById, getEventById, getVenueById } from '@/services/api';
+import { buildGoogleCalendarUrl } from '@/services/calendarLinks';
 
 function statusMeta(o) {
   if (!o) return { color: 'zinc', label: '—' };
@@ -34,6 +34,7 @@ export default function Order() {
 
   const [order, setOrder] = useState(null);
   const [event, setEvent] = useState(null);
+  const [venue, setVenue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -56,9 +57,16 @@ export default function Order() {
           ev = await getEventById(o.eventId);
         }
 
+        let v = null;
+        if (ev?.venueId) {
+          const vSnap = await getVenueById(ev.venueId);
+          if (vSnap?.exists()) v = { id: vSnap.id, ...vSnap.data() };
+        }
+
         if (alive) {
           setOrder(o);
           setEvent(ev);
+          setVenue(v);
         }
       } catch (e) {
         if (alive) setErr(e?.message || 'Failed to load order');
@@ -133,6 +141,31 @@ export default function Order() {
             {order.eventId ? (
               <Button href={`/events/${order.eventId}`} color='indigo'>
                 View event
+              </Button>
+            ) : null}
+            {event ? (
+              <Button
+                color='indigo'
+                onClick={() => {
+                  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                  const loc = venue
+                    ? [venue.name, venue.city, venue.country]
+                        .filter(Boolean)
+                        .join(', ')
+                    : '';
+                  const url = buildGoogleCalendarUrl({
+                    title: event.title,
+                    startsAt: event.startsAt,
+                    endsAt: event.endsAt,
+                    location: loc,
+                    description: event.description || '',
+                    ctz: tz,
+                    url: `${window.location.origin}/events/${event.id}`,
+                  });
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                }}
+              >
+                Add to Google Calendar
               </Button>
             ) : null}
           </div>
