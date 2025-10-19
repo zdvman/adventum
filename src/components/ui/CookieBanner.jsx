@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/catalyst-ui-kit/button';
 import { Link } from 'react-router-dom';
-import { PRIVACY_ROUTE } from '@/utils/policy';
+import { PRIVACY_ROUTE, recordCookieConsent } from '@/utils/policy';
 import AlertPopup from '@/components/ui/AlertPopup';
 
 const STORAGE_KEY = 'cookie-consent-v1';
@@ -17,7 +17,7 @@ export default function CookieBanner() {
 
   useEffect(() => {
     try {
-      const val = localStorage.getItem(STORAGE_KEY);
+      const val = recordCookieConsent();
       if (!val) setOpen(true);
     } catch (err) {
       console.error('Could not access localStorage', err);

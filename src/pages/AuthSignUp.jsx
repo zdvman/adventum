@@ -16,7 +16,11 @@ import {
   EyeIcon,
   EyeSlashIcon,
 } from '@heroicons/react/24/outline';
-import { PRIVACY_VERSION, PRIVACY_ROUTE } from '@/utils/policy';
+import {
+  PRIVACY_VERSION,
+  PRIVACY_ROUTE,
+  setLocalPrivacyAccepted,
+} from '@/utils/policy';
 
 // Read pattern-only from env (no slashes, no quotes)
 function getPasswordRegexFromEnv() {
@@ -132,6 +136,7 @@ export default function AuthSignUp() {
         },
         { remember }
       );
+      setLocalPrivacyAccepted();
       navigate(from, { replace: true });
     } catch (err) {
       setAlertTitle('Sign up failed');

@@ -30,3 +30,21 @@ export function recordCookieConsent() {
     void 0;
   }
 }
+
+export const PRIVACY_LOCAL_ACCEPT_KEY = `privacy-accepted-v:${PRIVACY_VERSION}`;
+
+export function getLocalPrivacyAccepted() {
+  try {
+    return localStorage.getItem(PRIVACY_LOCAL_ACCEPT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setLocalPrivacyAccepted() {
+  try {
+    localStorage.setItem(PRIVACY_LOCAL_ACCEPT_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}

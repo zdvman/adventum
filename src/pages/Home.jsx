@@ -144,7 +144,6 @@ export default function Home() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadTick]);
 
   const isStaff = useMemo(() => profile?.role === 'staff', [profile?.role]);

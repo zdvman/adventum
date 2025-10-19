@@ -11,7 +11,12 @@ import Logo from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/useAuth';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router';
-import { PRIVACY_VERSION, PRIVACY_ROUTE } from '@/utils/policy';
+import {
+  PRIVACY_VERSION,
+  PRIVACY_ROUTE,
+  getLocalPrivacyAccepted,
+  setLocalPrivacyAccepted,
+} from '@/utils/policy';
 
 function AuthSignIn() {
   const { signIn, signInWithGoogle, loading } = useAuth();
@@ -19,7 +24,9 @@ function AuthSignIn() {
   const location = useLocation();
 
   const [remember, setRemember] = useState(false);
-  const [agreeGoogle, setAgreeGoogle] = useState(false); // <-- NEW
+  const [agreeGoogle, setAgreeGoogle] = useState(() =>
+    getLocalPrivacyAccepted()
+  );
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertTitle, setAlertTitle] = useState('');
@@ -71,6 +78,7 @@ function AuthSignIn() {
       setIsAlertOpen(true);
       return;
     }
+    setLocalPrivacyAccepted();
     try {
       await signInWithGoogle({
         remember,

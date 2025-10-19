@@ -1,3 +1,5 @@
+// src/utils/storage.js
+
 const KEY = 'adventum_auth';
 
 function safeGet(storage) {
