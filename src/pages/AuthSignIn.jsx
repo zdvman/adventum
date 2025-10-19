@@ -1,3 +1,4 @@
+// src/pages/AuthSignIn.jsx
 import { Button } from '@/components/catalyst-ui-kit/button';
 import { Checkbox, CheckboxField } from '@/components/catalyst-ui-kit/checkbox';
 import { Field, Label } from '@/components/catalyst-ui-kit/fieldset';
@@ -10,6 +11,7 @@ import Logo from '@/components/ui/Logo';
 import { useAuth } from '@/contexts/useAuth';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router';
+import { PRIVACY_VERSION, PRIVACY_ROUTE } from '@/utils/policy';
 
 function AuthSignIn() {
   const { signIn, signInWithGoogle, loading } = useAuth();
@@ -17,6 +19,7 @@ function AuthSignIn() {
   const location = useLocation();
 
   const [remember, setRemember] = useState(false);
+  const [agreeGoogle, setAgreeGoogle] = useState(false); // <-- NEW
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [alertTitle, setAlertTitle] = useState('');
@@ -60,11 +63,20 @@ function AuthSignIn() {
 
   async function handleGoogle(e) {
     e.preventDefault();
+    if (!agreeGoogle) {
+      setAlertTitle('Consent required');
+      setAlertMessage(
+        'Please agree to the Privacy Policy to continue with Google.'
+      );
+      setIsAlertOpen(true);
+      return;
+    }
     try {
-      await signInWithGoogle({ remember });
-      // If popup succeeds, we get here immediately.
-      // If redirect fallback is used, this line may not run (page will redirect),
-      // and onAuthStateChanged will handle session after redirect.
+      await signInWithGoogle({
+        remember,
+        acceptedPolicyAt: new Date().toISOString(),
+        acceptedPolicyVersion: PRIVACY_VERSION,
+      });
       navigate(from, { replace: true });
     } catch (err) {
       if (err?.code === 'auth/user-disabled') {
@@ -145,12 +157,31 @@ function AuthSignIn() {
             <div className='w-full flex-1 border-t border-white/10' />
           </div>
 
-          <div className='mt-6 grid grid-cols-2 gap-4'>
+          {/* NEW: Consent for Google */}
+          <div className='mt-6'>
+            <CheckboxField>
+              <Checkbox checked={agreeGoogle} onChange={setAgreeGoogle} />
+              <Label>
+                I agree to the{' '}
+                <TextLink href={PRIVACY_ROUTE} target='_blank' rel='noreferrer'>
+                  <Strong>Privacy Policy</Strong>
+                </TextLink>{' '}
+                to continue with Google.
+              </Label>
+            </CheckboxField>
+          </div>
+
+          <div className='mt-4 grid grid-cols-2 gap-4'>
             <Button
               type='button'
               onClick={handleGoogle}
-              disabled={loading}
+              disabled={loading || !agreeGoogle}
               className='flex w-full items-center justify-center gap-3 bg-white/10'
+              title={
+                !agreeGoogle
+                  ? 'Please agree to the Privacy Policy first'
+                  : undefined
+              }
             >
               <GoogleSVG />
               <span className='text-sm/6 font-semibold'>Google</span>

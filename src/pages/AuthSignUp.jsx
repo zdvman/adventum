@@ -16,6 +16,7 @@ import {
   EyeIcon,
   EyeSlashIcon,
 } from '@heroicons/react/24/outline';
+import { PRIVACY_VERSION, PRIVACY_ROUTE } from '@/utils/policy';
 
 // Read pattern-only from env (no slashes, no quotes)
 function getPasswordRegexFromEnv() {
@@ -51,6 +52,7 @@ export default function AuthSignUp() {
   const [touchedPw, setTouchedPw] = useState(false);
   const [touchedConfirm, setTouchedConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [agreePolicy, setAgreePolicy] = useState(false); // <-- NEW
 
   const checks = useMemo(
     () => ({
@@ -67,7 +69,7 @@ export default function AuthSignUp() {
   const doesConfirmMatch = confirm.length > 0 && confirm === password;
 
   // enable only when local fields are clearly valid (submitting handled separately)
-  const canSubmit = isPasswordValid && doesConfirmMatch;
+  const canSubmit = isPasswordValid && doesConfirmMatch && agreePolicy;
 
   const from = location.state?.from || '/';
 
@@ -90,6 +92,12 @@ export default function AuthSignUp() {
       setTouchedConfirm(true);
       setAlertTitle('Passwords do not match');
       setAlertMessage('Make sure both password fields are identical.');
+      setIsAlertOpen(true);
+      return;
+    }
+    if (!agreePolicy) {
+      setAlertTitle('Consent required');
+      setAlertMessage('Please read and agree to the Privacy Policy.');
       setIsAlertOpen(true);
       return;
     }
@@ -119,6 +127,8 @@ export default function AuthSignUp() {
           email,
           password,
           avatar,
+          acceptedPolicyAt: new Date().toISOString(),
+          acceptedPolicyVersion: PRIVACY_VERSION,
         },
         { remember }
       );
@@ -271,6 +281,18 @@ export default function AuthSignUp() {
         <CheckboxField>
           <Checkbox name='remember' />
           <Label>Keep me signed in on this device</Label>
+        </CheckboxField>
+
+        {/* NEW: Privacy Policy consent */}
+        <CheckboxField>
+          <Checkbox checked={agreePolicy} onChange={setAgreePolicy} />
+          <Label>
+            I have read and agree to the{' '}
+            <TextLink href={PRIVACY_ROUTE} target='_blank' rel='noreferrer'>
+              <Strong>Privacy Policy</Strong>
+            </TextLink>
+            .
+          </Label>
         </CheckboxField>
 
         <Button

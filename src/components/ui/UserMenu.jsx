@@ -52,7 +52,7 @@ function UserMenu() {
           <Cog8ToothIcon />
           <DropdownLabel>Settings</DropdownLabel>
         </DropdownItem>
-        <DropdownItem href='/privacy-policy'>
+        <DropdownItem href='/privacy'>
           <ShieldCheckIcon />
           <DropdownLabel>Privacy policy</DropdownLabel>
         </DropdownItem>

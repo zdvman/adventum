@@ -30,6 +30,7 @@ import {
   setDoc,
   // deleteDoc
 } from 'firebase/firestore';
+import { PRIVACY_VERSION } from '@/utils/policy';
 
 function buildFullName(firstName, lastName) {
   const parts = [firstName || '', lastName || '']
@@ -176,6 +177,8 @@ export function AuthContextProvider({ children }) {
       password,
       role = 'member',
       avatar = '/avatars/incognito.png',
+      acceptedPolicyAt,
+      acceptedPolicyVersion,
     } = data;
     setLoading(true);
     setError(null);
@@ -203,6 +206,8 @@ export function AuthContextProvider({ children }) {
         email, // mirror auth email into profile
         providerIds: ['password'], // initial provider for emailpassword
         updatedAt: new Date().toISOString(),
+        acceptedPolicyAt: acceptedPolicyAt || new Date().toISOString(),
+        acceptedPolicyVersion: acceptedPolicyVersion || PRIVACY_VERSION,
       });
       return { uid: cred.user.uid, email: cred.user.email };
     } catch (err) {
@@ -214,25 +219,45 @@ export function AuthContextProvider({ children }) {
     }
   }, []);
 
-  const signInWithGoogle = useCallback(async ({ remember = false } = {}) => {
-    const provider = new GoogleAuthProvider();
-    setLoading(true);
-    setError(null);
-    try {
-      await setPersistence(
-        auth,
-        remember ? browserLocalPersistence : browserSessionPersistence
-      );
-      const result = await signInWithPopup(auth, provider);
-      return result.user;
-    } catch (err) {
-      console.error('Google sign-in error:', err);
-      setError(err.message || 'Failed to sign in with Google');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const signInWithGoogle = useCallback(
+    async ({
+      remember = false,
+      acceptedPolicyAt,
+      acceptedPolicyVersion,
+    } = {}) => {
+      const provider = new GoogleAuthProvider();
+      setLoading(true);
+      setError(null);
+      try {
+        await setPersistence(
+          auth,
+          remember ? browserLocalPersistence : browserSessionPersistence
+        );
+        const result = await signInWithPopup(auth, provider);
+        // Record acceptance on first Google sign-in (or update)
+        if (result?.user?.uid) {
+          const ref = doc(db, 'profiles', result.user.uid);
+          await setDoc(
+            ref,
+            {
+              acceptedPolicyAt: acceptedPolicyAt || new Date().toISOString(),
+              acceptedPolicyVersion: acceptedPolicyVersion || PRIVACY_VERSION,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        }
+        return result.user;
+      } catch (err) {
+        console.error('Google sign-in error:', err);
+        setError(err.message || 'Failed to sign in with Google');
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   const resetPassword = useCallback(async (email) => {
     if (!email) throw new Error('Email is required.');

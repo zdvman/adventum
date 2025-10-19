@@ -27,12 +27,14 @@ import UsersIndexStaff from '@/pages/UsersIndexStaff';
 import EditEvent from '@/pages/EditEvent';
 import UserEditStaff from '@/pages/UserEditStaff';
 import SeedProfileEmails from '@/pages/SeedProfileEmails';
+import PrivacyPolicy from '@/pages/PrivacyPolicy';
 
 export const router = createBrowserRouter([
   {
     element: <AppLayout />,
     children: [
       { path: '/', element: <Home /> },
+      { path: '/privacy', element: <PrivacyPolicy /> },
 
       // Public events catalogue
       { path: '/events', element: <EventsIndex /> },

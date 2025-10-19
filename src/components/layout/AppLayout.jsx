@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/useAuth';
 import AlertPopup from '@/components/ui/AlertPopup';
 import { useEffect } from 'react';
 import Breadcrumbs from '@/components/ui/Breadcrumbs';
+import CookieBanner from '../ui/CookieBanner';
+import Footer from './Footer';
 
 const mainMenuNavItems = [
   {
@@ -49,6 +51,8 @@ export default function AppLayout() {
 
         <Outlet />
       </StackedLayout>
+      <Footer />
+      <CookieBanner />
       {error && (
         <AlertPopup
           isOpen={!!error}

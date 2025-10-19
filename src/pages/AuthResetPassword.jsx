@@ -8,7 +8,7 @@ import { Input } from '@/components/catalyst-ui-kit/input';
 import { Strong, Text, TextLink } from '@/components/catalyst-ui-kit/text';
 import AlertPopup from '@/components/ui/AlertPopup';
 import Logo from '@/components/ui/Logo';
-import { useAuth } from '@/contexts/useAuth'; // ← use context method
+import { useAuth } from '@/contexts/useAuth';
 
 export default function AuthResetPassword() {
   const navigate = useNavigate();
