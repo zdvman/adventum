@@ -11,7 +11,6 @@ function Logo({
   return (
     <div
       className={clsx(
-        // center on mobile, left on desktop
         'flex w-full items-center justify-center lg:w-auto lg:justify-start',
         className
       )}

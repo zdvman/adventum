@@ -9,7 +9,7 @@ import { splitIdSlug } from '@/utils/slug';
 
 const LABELS = {
   events: 'Events',
-  checkout: 'Checkout', // ← added
+  checkout: 'Checkout',
   new: 'Create Event',
   edit: 'Edit',
   auth: 'Auth',
@@ -29,13 +29,6 @@ function slugOnlyTitle(idSlug) {
   return wordsTitleCase(slug || idSlug);
 }
 
-/**
- * Breadcrumbs
- * - Understands /events/:idSlug and /checkout/:idSlug
- * - For those, fetches the event title by ID and uses it for the leaf crumb.
- * - Otherwise prettifies path segments (kebab → Title Case).
- * - Doesn't link "Checkout" because there is no /checkout index page.
- */
 export default function Breadcrumbs({ className, hideOnHome = true }) {
   const location = useLocation();
 
@@ -44,7 +37,6 @@ export default function Breadcrumbs({ className, hideOnHome = true }) {
     [location.pathname]
   );
 
-  // Fetch event title for routes that carry an event idSlug
   const [eventTitle, setEventTitle] = useState('');
   useEffect(() => {
     let ignore = false;
@@ -81,7 +73,6 @@ export default function Breadcrumbs({ className, hideOnHome = true }) {
     const href = '/' + segments.slice(0, index + 1).join('/');
     const isCurrent = index === segments.length - 1;
 
-    // If we’re in /events/:idSlug or /checkout/:idSlug
     const isEventish =
       (segments[0] === 'events' || segments[0] === 'checkout') && index === 1;
 
@@ -89,13 +80,11 @@ export default function Breadcrumbs({ className, hideOnHome = true }) {
     if (LABELS[segment]) {
       name = LABELS[segment];
     } else if (isEventish) {
-      // Prefer fetched title; otherwise, show a prettified slug (no UID).
       name = eventTitle || slugOnlyTitle(segments[1]);
     } else {
       name = wordsTitleCase(segment);
     }
 
-    // Don't link "Checkout" because there is no index page there.
     const isLinkableRootCheckout = segments[0] === 'checkout' && index === 0;
     const linkable = !isCurrent && !isLinkableRootCheckout;
 

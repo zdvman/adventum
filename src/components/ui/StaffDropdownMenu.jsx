@@ -2,21 +2,14 @@
 import {
   Dropdown,
   DropdownButton,
-  DropdownDivider,
   DropdownItem,
   DropdownLabel,
   DropdownMenu,
 } from '@/components/catalyst-ui-kit/dropdown';
-import { Avatar } from '@/components/catalyst-ui-kit/avatar';
 import {
-  CheckIcon,
   ChevronDownIcon,
-  Cog8ToothIcon,
-  MapIcon,
-  PlusIcon,
   ShieldCheckIcon,
   TableCellsIcon,
-  TagIcon,
   UsersIcon,
 } from '@heroicons/react/20/solid';
 import { SidebarItem, SidebarLabel } from '../catalyst-ui-kit/sidebar';
@@ -41,14 +34,6 @@ export default function StaffDropdownMenu({ className }) {
             <TableCellsIcon />
             <DropdownLabel>Events</DropdownLabel>
           </DropdownItem>
-          {/* <DropdownItem href='/staff/venues'>
-            <MapIcon />
-            <DropdownLabel>Venues</DropdownLabel>
-          </DropdownItem>
-          <DropdownItem href='/staff/categories'>
-            <TagIcon />
-            <DropdownLabel>Categories</DropdownLabel>
-          </DropdownItem> */}
         </DropdownMenu>
       )}
     </Dropdown>

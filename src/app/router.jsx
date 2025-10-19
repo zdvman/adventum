@@ -24,8 +24,6 @@ import Order from '@/pages/Order';
 import RequireStaff from '@/components/auth/RequireStaff';
 import EventsIndexStaff from '@/pages/EventsIndexStaff';
 import UsersIndexStaff from '@/pages/UsersIndexStaff';
-import VenuesIndexStaff from '@/pages/VenuesIndexStaff';
-import CategoriesIndexStaff from '@/pages/CategoriesIndexStaff';
 import EditEvent from '@/pages/EditEvent';
 import UserEditStaff from '@/pages/UserEditStaff';
 import SeedProfileEmails from '@/pages/SeedProfileEmails';
@@ -103,27 +101,6 @@ export const router = createBrowserRouter([
               <RequireAuth>
                 <RequireStaff>
                   <UserEditStaff />
-                </RequireStaff>
-              </RequireAuth>
-            ),
-          },
-
-          {
-            path: 'venues',
-            element: (
-              <RequireAuth>
-                <RequireStaff>
-                  <VenuesIndexStaff />
-                </RequireStaff>
-              </RequireAuth>
-            ),
-          },
-          {
-            path: 'categories',
-            element: (
-              <RequireAuth>
-                <RequireStaff>
-                  <CategoriesIndexStaff />
                 </RequireStaff>
               </RequireAuth>
             ),
