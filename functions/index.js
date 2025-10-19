@@ -30,6 +30,26 @@ const STRIPE_SECRET =
   process.env.STRIPE__SECRET || process.env.STRIPE_SECRET || '';
 const APP_ORIGIN = process.env.APP__ORIGIN || 'http://localhost:5173';
 
+function inferAppOrigin(req, fallback = 'http://localhost:5173') {
+  const h = req?.rawRequest?.headers || {};
+  const candidates = [h.origin, h.referer, h['x-forwarded-origin']]
+    .flat()
+    .filter(Boolean);
+  for (const v of candidates) {
+    try {
+      return new URL(v).origin;
+    } catch {}
+  }
+  // Fallback to env or hard default
+  try {
+    return new URL(
+      process.env.APP__ORIGIN || process.env.APP_ORIGIN || fallback
+    ).origin;
+  } catch {
+    return new URL(fallback).origin;
+  }
+}
+
 // Initialize Admin SDK once (works with Admin v12+)
 if (!getApps().length) {
   initializeApp();
@@ -562,9 +582,7 @@ export const createCheckoutSession = onCall(async (req) => {
     );
   }
 
-  const origin = normalizeOrigin(
-    process.env.APP__ORIGIN || process.env.APP_ORIGIN || APP_ORIGIN
-  );
+  const origin = inferAppOrigin(req, 'http://localhost:5173');
   const successUrl = `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
   const cancelUrl = `${origin}/checkout/cancel?event=${encodeURIComponent(
     eventId
